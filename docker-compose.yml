@@ -1,0 +1,8 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    # All settings (incl. MONGODB_URI — e.g. your Atlas connection) come from .env.
+    env_file:
+      - .env
