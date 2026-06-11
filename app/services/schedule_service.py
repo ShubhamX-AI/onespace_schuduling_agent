@@ -75,7 +75,7 @@ def _register_job(schedule: Schedule) -> None:
         execute_schedule,
         trigger=_trigger_for(schedule),
         id=str(schedule.id),
-        kwargs={"schedule_id": str(schedule.id), "payload": schedule.payload},
+        kwargs={"schedule_id": str(schedule.id)},
         replace_existing=True,
     )
 
@@ -177,5 +177,5 @@ async def resume_schedule(schedule_id: str) -> Schedule:
 async def run_schedule_now(schedule_id: str) -> Schedule:
     """Fire the job once immediately, independent of its trigger."""
     schedule = await get_schedule(schedule_id)
-    await execute_schedule(str(schedule.id), schedule.payload)
+    await execute_schedule(str(schedule.id))
     return schedule

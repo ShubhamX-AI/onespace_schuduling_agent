@@ -1,0 +1,60 @@
+site_name: OneSpace Scheduling Service
+site_description: Schedule a webhook to fire on an interval, a cron, or a one-shot date — in any timezone.
+docs_dir: docs
+# Served by the API at /documentation (StaticFiles mount), so links are relative.
+use_directory_urls: false
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.inlinehilite
+
+nav:
+  - Home: index.md
+  - Concepts:
+      - concepts/schedules.md
+      - concepts/triggers.md
+      - concepts/actions.md
+      - concepts/response-envelope.md
+  - API Reference:
+      - api/schedules.md
+      - api/health.md
+  - Recipes: recipes.md
+  - Errors: errors.md

@@ -8,9 +8,7 @@ from app.services.schedule_service import build_trigger
 
 
 def test_cron_trigger_uses_given_timezone() -> None:
-    trigger = build_trigger(
-        TriggerType.CRON, {"hour": 9, "minute": 0}, timezone="America/New_York"
-    )
+    trigger = build_trigger(TriggerType.CRON, {"hour": 9, "minute": 0}, timezone="America/New_York")
     assert str(trigger.timezone) == "America/New_York"
 
 

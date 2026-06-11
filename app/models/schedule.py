@@ -2,11 +2,11 @@
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 import pymongo
 from beanie import Document
-from pydantic import Field
+from pydantic import BaseModel, Field, HttpUrl
 from pymongo import IndexModel
 
 
@@ -14,6 +14,26 @@ class TriggerType(StrEnum):
     DATE = "date"
     INTERVAL = "interval"
     CRON = "cron"
+
+
+class ActionType(StrEnum):
+    WEBHOOK = "webhook"
+
+
+class WebhookAction(BaseModel):
+    """What the scheduler does when a schedule fires: call an external HTTP API.
+
+    The request body sent is the schedule's ``payload``. ``url`` is checked for
+    SSRF (private/loopback hosts) at call time, not here.
+    """
+
+    type: ActionType = ActionType.WEBHOOK
+    method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"] = "POST"
+    url: HttpUrl
+    headers: dict[str, str] = Field(default_factory=dict)
+    timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    # Extra attempts after the first on failure (non-2xx / timeout), with backoff.
+    max_retries: int = Field(default=3, ge=0, le=10)
 
 
 class ScheduleStatus(StrEnum):
@@ -44,7 +64,11 @@ class Schedule(Document):
     start_date: datetime | None = None
     end_date: datetime | None = None
     # Arbitrary payload handed to the job executor when the schedule fires.
+    # For a webhook action this is sent as the request body.
     payload: dict[str, Any] = Field(default_factory=dict)
+    # What to do on fire. Optional so legacy/log-only docs still load; new
+    # schedules require it via ScheduleCreate.
+    action: WebhookAction | None = None
     status: ScheduleStatus = ScheduleStatus.ACTIVE
     # Outcome of the most recent run, recorded by the scheduler event listener.
     last_run_at: datetime | None = None

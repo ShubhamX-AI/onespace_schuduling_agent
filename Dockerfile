@@ -16,14 +16,21 @@ COPY app ./app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
+# Build the documentation site (served by the app at /documentation).
+COPY mkdocs.yml ./
+COPY docs ./docs
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv run --group docs mkdocs build --strict
+
 
 FROM python:3.12-slim-bookworm AS runtime
 
 WORKDIR /app
 
-# Copy the prepared virtual environment and source.
+# Copy the prepared virtual environment, source, and built docs.
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/app /app/app
+COPY --from=builder /app/site /app/site
 
 ENV PATH="/app/.venv/bin:$PATH"
 

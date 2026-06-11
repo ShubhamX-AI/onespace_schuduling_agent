@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     scheduler_jobs_collection: str = "apscheduler_jobs"
     scheduler_timezone: str = "UTC"
 
+    # Webhook actions
+    # Allow webhook targets on loopback/private IPs. Off in prod (SSRF guard);
+    # turn on in dev/test to hit a local listener.
+    webhook_allow_private_hosts: bool = False
+
+    # Built MkDocs site, served at /documentation. Run `mkdocs build` to create
+    # it; if the directory is absent the route is simply not mounted.
+    docs_site_dir: str = "site"
+
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() == "production"

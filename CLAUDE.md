@@ -51,7 +51,8 @@ app/
 - **models vs schemas are deliberately separate** — a `models/` Document is the DB shape (has `_id`, indexes); a `schemas/` DTO is the public API shape. Never return a Document directly; map it with `ScheduleRead.from_document(...)`. This lets the DB change without breaking clients.
 - **One schedule = one APScheduler job**, job id == document id. `services/schedule_service.py` keeps DB and scheduler consistent: on a scheduler failure it rolls back / leaves the DB untouched (see `create_schedule`, `update_schedule`).
 - **Triggers** are timezone-aware: `build_trigger()` injects the schedule's IANA `timezone` (and optional start/end window) into the APScheduler trigger, so firing is independent of the host clock.
-- **Run outcomes** are self-recorded: `scheduler/jobs.py:execute_schedule` is async, runs the work, and writes `last_run_at/last_status/last_error` back to the document.
+- **Actions** are what a schedule *does* on fire (the WHEN is the trigger; the WHAT is the action). One type today — `webhook` (`models/schedule.py:WebhookAction`): the schedule's `payload` is sent as the HTTP body. The action model is shaped for future types (`queue`, `kafka`) without breaking the contract. Execution lives in `scheduler/actions.py:run_action` — SSRF-guarded (private/loopback hosts blocked unless `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`) and retried with exponential backoff up to `max_retries`.
+- **Run outcomes** are self-recorded: `scheduler/jobs.py:execute_schedule` takes only the schedule id, reloads the document (DB is the source of truth — no payload in jobstore kwargs), runs the action, and writes `last_run_at/last_status/last_error` back.
 
 ### Response envelope (every endpoint)
 

@@ -5,7 +5,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.schedule import RunStatus, Schedule, ScheduleStatus, TriggerType
+from app.models.schedule import (
+    RunStatus,
+    Schedule,
+    ScheduleStatus,
+    TriggerType,
+    WebhookAction,
+)
 
 
 class ScheduleCreate(BaseModel):
@@ -17,6 +23,8 @@ class ScheduleCreate(BaseModel):
     start_date: datetime | None = None
     end_date: datetime | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+    # What to fire when the trigger hits.
+    action: WebhookAction
 
 
 class ScheduleUpdate(BaseModel):
@@ -27,6 +35,7 @@ class ScheduleUpdate(BaseModel):
     start_date: datetime | None = None
     end_date: datetime | None = None
     payload: dict[str, Any] | None = None
+    action: WebhookAction | None = None
     status: ScheduleStatus | None = None
 
 
@@ -42,6 +51,7 @@ class ScheduleRead(BaseModel):
     start_date: datetime | None
     end_date: datetime | None
     payload: dict[str, Any]
+    action: WebhookAction | None
     status: ScheduleStatus
     # When the job fires next, read live from the scheduler (None if paused/expired).
     next_run_at: datetime | None
@@ -63,6 +73,7 @@ class ScheduleRead(BaseModel):
             start_date=doc.start_date,
             end_date=doc.end_date,
             payload=doc.payload,
+            action=doc.action,
             status=doc.status,
             next_run_at=next_run_at,
             last_run_at=doc.last_run_at,
