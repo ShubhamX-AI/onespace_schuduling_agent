@@ -1,8 +1,11 @@
 services:
-  api:
-    build: .
+  app:
+    container_name: onespace-scheduling-agent
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
-    # All settings (incl. MONGODB_URI — e.g. your Atlas connection) come from .env.
+      - "${PORT:-3011}:${PORT:-3011}"
     env_file:
       - .env
+    restart: unless-stopped

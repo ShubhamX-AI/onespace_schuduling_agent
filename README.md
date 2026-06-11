@@ -61,11 +61,15 @@ cp .env.example .env     # configure (defaults target localhost Mongo)
 
 ## Run
 
-With Docker (API only; reads `MONGODB_URI` and the rest from `.env`):
+With Docker (reads `MONGODB_URI`, `PORT`, and the rest from `.env`):
 
 ```bash
 docker compose up --build
 ```
+
+The container starts via `python server_run.py`, which execs **Granian** and
+binds the port from the `PORT` env (default **3011**). `WORKERS` controls the
+Granian process count.
 
 Locally for development (needs a running MongoDB), uvicorn with auto-reload:
 
@@ -73,17 +77,32 @@ Locally for development (needs a running MongoDB), uvicorn with auto-reload:
 uv run uvicorn app.main:app --reload
 ```
 
-For production / high-I/O, **Granian** (Rust ASGI server, higher throughput):
+For production / high-I/O, run the same entrypoint the image uses — **Granian**
+(Rust ASGI server, higher throughput):
 
 ```bash
-uv run granian --interface asgi --host 0.0.0.0 --port 8000 --workers 4 app.main:app
+PORT=3011 WORKERS=4 python server_run.py
+# equivalently, the raw command it execs:
+uv run granian --interface asgi --host 0.0.0.0 --port 3011 --workers 4 app.main:app
 ```
 
 FastAPI speaks ASGI, so Granian runs with `--interface asgi`. Scale concurrency
-with `--workers`; the async endpoints make this the high-I/O path. The Docker
-image already starts via Granian.
+with `WORKERS`; the async endpoints make this the high-I/O path.
 
-API docs at <http://localhost:8000/docs> (Swagger / OpenAPI).
+API docs at `http://localhost:$PORT/docs` (Swagger / OpenAPI) — e.g.
+<http://localhost:3011/docs>.
+
+## Deployment
+
+`deploy.sh` does a one-shot deploy on a host that has Docker + a populated
+`.env`:
+
+```bash
+./deploy.sh        # git pull → docker compose up -d --build → docker system prune
+```
+
+Env knobs that matter for serving: `PORT` (bind port, default 3011) and
+`WORKERS` (Granian processes). Everything else is in `.env.example`.
 
 ## Documentation site
 
@@ -98,7 +117,8 @@ uv run mkdocs build --strict         # build into ./site
 ```
 
 Once `./site` exists, the running API serves it at
-<http://localhost:8000/documentation>. The Docker image builds and bundles it
+`http://localhost:$PORT/documentation` (e.g. <http://localhost:3011/documentation>).
+The Docker image builds and bundles it
 automatically. If `./site` is absent, the route is simply not mounted (the API
 still runs).
 
@@ -126,6 +146,12 @@ Errors keep the same shape (`success: false`, `data: null`); validation errors
 { "success": false, "message": "Validation failed",
   "data": [{ "field": "body.name", "error": "Field required" }] }
 ```
+
+Request bodies are validated strictly: unknown fields are rejected, `name` is
+trimmed/non-blank (and renamable via `PATCH`, unique), `timezone` must be a valid
+IANA name, `trigger_args` can't carry the reserved `timezone`/`start_date`/`end_date`
+keys, `start_date` must precede `end_date`, and webhook `headers` reject control
+characters. Full list: [docs/api/schedules.md](docs/api/schedules.md#validation-rules).
 
 | Method | Path                            | Description                       |
 | ------ | ------------------------------- | --------------------------------- |

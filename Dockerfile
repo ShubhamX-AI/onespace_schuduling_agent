@@ -27,13 +27,22 @@ FROM python:3.12-slim-bookworm AS runtime
 
 WORKDIR /app
 
-# Copy the prepared virtual environment, source, and built docs.
+# Copy the prepared virtual environment, source, built docs, and entrypoint.
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/app /app/app
 COPY --from=builder /app/site /app/site
+COPY server_run.py ./
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-EXPOSE 8000
-# Granian (Rust ASGI server) for high-throughput I/O. Scale with --workers.
-CMD ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8000", "app.main:app"]
+# Run unprivileged.
+RUN useradd --create-home --uid 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Documentation only — the real bind port is read from the PORT env at runtime
+# by server_run.py (default 3011). Override the ARG to change what's documented.
+ARG PORT=3011
+EXPOSE ${PORT}
+
+# server_run.py execs Granian (Rust ASGI server). Scale with the WORKERS env.
+CMD ["python", "server_run.py"]

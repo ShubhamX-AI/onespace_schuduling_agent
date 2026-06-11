@@ -58,6 +58,26 @@ Field meanings: see [Schedules](../concepts/schedules.md).
 
 ---
 
+## Validation rules
+
+Request bodies are validated strictly — a violation returns a `422` envelope
+with the offending field(s) in `data` (see [Errors](../errors.md)):
+
+- **Unknown fields are rejected.** A typo like `"timezzone"` errors instead of
+  being silently ignored.
+- **`name`** is trimmed and must be non-blank (≤ 128 chars). On `PATCH` it can be
+  changed (rename); a name already in use returns `409`.
+- **`description`** is trimmed; blank becomes `null` (≤ 512 chars).
+- **`timezone`** must be a resolvable IANA name (e.g. `America/New_York`).
+- **`trigger_args`** must not contain the reserved keys `timezone`,
+  `start_date`, or `end_date` — those are set as top-level fields.
+- **`start_date`** must be before **`end_date`** when both are given.
+- **`action.headers`** may not contain control characters (`\r`, `\n`, null) and
+  are capped (≤ 50 headers, ≤ 1024 chars each).
+- A `PATCH` with no fields is rejected.
+
+---
+
 ## Create a schedule
 
 `POST /api/v1/schedules` → **201**
@@ -163,13 +183,17 @@ unknown/malformed id. See [run history & notifications](../concepts/actions.md#r
 
 `PATCH /api/v1/schedules/{id}` → **200**
 
-Send **only the fields you want to change** — all are optional. Updatable:
-`description`, `trigger_type`, `trigger_args`, `timezone`, `start_date`,
+Send **only the fields you want to change** — all are optional, but the body
+must contain **at least one** field (an empty `{}` returns `422`). Updatable:
+`name`, `description`, `trigger_type`, `trigger_args`, `timezone`, `start_date`,
 `end_date`, `payload`, `action`, `notify_url`, `status`.
 
 ```json
 { "trigger_args": { "hour": 10 }, "payload": { "report": "daily-v2" } }
 ```
+
+`name` can be changed (rename); renaming to a name already in use returns `409`.
+All [validation rules](#validation-rules) apply to the fields you send.
 
 `message: "Schedule updated"`, `data` = the updated object. The scheduler is
 re-synced atomically — a bad trigger leaves the stored schedule unchanged (`422`).

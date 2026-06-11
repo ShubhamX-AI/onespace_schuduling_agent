@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 import pymongo
 from beanie import Document, PydanticObjectId
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pymongo import IndexModel
 
 from app.core.config import get_settings
@@ -22,12 +22,23 @@ class ActionType(StrEnum):
     WEBHOOK = "webhook"
 
 
+# Header hardening limits.
+_MAX_HEADERS = 50
+_MAX_HEADER_LEN = 1024
+# Control characters that enable HTTP header injection if smuggled into a value.
+_HEADER_FORBIDDEN_CHARS = ("\r", "\n", "\x00")
+
+
 class WebhookAction(BaseModel):
     """What the scheduler does when a schedule fires: call an external HTTP API.
 
     The request body sent is the schedule's ``payload``. ``url`` is checked for
     SSRF (private/loopback hosts) at call time, not here.
     """
+
+    # Reject unknown keys so client typos surface as errors instead of silently
+    # dropping (e.g. "methdo" would otherwise leave method at its default).
+    model_config = ConfigDict(extra="forbid")
 
     type: ActionType = ActionType.WEBHOOK
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"] = "POST"
@@ -36,6 +47,22 @@ class WebhookAction(BaseModel):
     timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     # Extra attempts after the first on failure (non-2xx / timeout), with backoff.
     max_retries: int = Field(default=3, ge=0, le=10)
+
+    @field_validator("headers")
+    @classmethod
+    def _validate_headers(cls, headers: dict[str, str]) -> dict[str, str]:
+        """Block header injection (CRLF/null) and cap count + length."""
+        if len(headers) > _MAX_HEADERS:
+            raise ValueError(f"too many headers (max {_MAX_HEADERS})")
+        for key, value in headers.items():
+            if not key or not key.strip():
+                raise ValueError("header name must not be empty")
+            for field, text in (("name", key), ("value", value)):
+                if any(c in text for c in _HEADER_FORBIDDEN_CHARS):
+                    raise ValueError(f"header {field} '{key}' contains control characters")
+                if len(text) > _MAX_HEADER_LEN:
+                    raise ValueError(f"header {field} '{key}' exceeds {_MAX_HEADER_LEN} chars")
+        return headers
 
 
 class ScheduleStatus(StrEnum):

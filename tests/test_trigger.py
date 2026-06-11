@@ -25,3 +25,12 @@ def test_unknown_timezone_rejected() -> None:
 def test_bad_trigger_args_rejected() -> None:
     with pytest.raises(ValidationError):
         build_trigger(TriggerType.CRON, {"hour": 99})
+
+
+def test_start_after_end_rejected() -> None:
+    from datetime import datetime
+
+    start = datetime(2026, 9, 1)
+    end = datetime(2026, 7, 1)
+    with pytest.raises(ValidationError):
+        build_trigger(TriggerType.INTERVAL, {"seconds": 30}, start_date=start, end_date=end)

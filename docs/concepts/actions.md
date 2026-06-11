@@ -23,7 +23,7 @@ language can be driven by it.
 | `type` | no | `webhook` | Action kind (only `webhook` for now). |
 | `method` | no | `POST` | `GET` \| `POST` \| `PUT` \| `PATCH` \| `DELETE`. |
 | `url` | **yes** | — | Target URL. Must be `http` or `https`. |
-| `headers` | no | `{}` | Sent with the request (auth tokens, content negotiation, …). |
+| `headers` | no | `{}` | Sent with the request (auth tokens, content negotiation, …). Names/values may not contain control characters (`\r`, `\n`, null); max 50 headers, ≤ 1024 chars each. |
 | `timeout_seconds` | no | `30` | Per-attempt timeout. Range `0 < t ≤ 300`. |
 | `max_retries` | no | `3` | Extra attempts after the first on failure. Range `0–10`. |
 

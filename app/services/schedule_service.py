@@ -49,6 +49,8 @@ def build_trigger(
     Raises ValidationError on a bad timezone or trigger args. The timezone makes
     firing independent of the host server's local clock.
     """
+    if start_date and end_date and start_date >= end_date:
+        raise ValidationError("start_date must be before end_date")
     tz = _resolve_timezone(timezone)
     args: dict[str, Any] = {**trigger_args, "timezone": tz}
     if trigger_type in _WINDOWED_TRIGGERS:
@@ -150,6 +152,14 @@ async def get_schedule(schedule_id: str) -> Schedule:
 async def update_schedule(schedule_id: str, data: ScheduleUpdate) -> Schedule:
     schedule = await get_schedule(schedule_id)
     changes = data.model_dump(exclude_unset=True)
+    if not changes:
+        raise ValidationError("No fields to update")
+
+    new_name = changes.get("name")
+    if new_name is not None and new_name != schedule.name:
+        if await Schedule.find_one(Schedule.name == new_name) is not None:
+            raise ConflictError(f"Schedule '{new_name}' already exists")
+
     for field, value in changes.items():
         setattr(schedule, field, value)
     _trigger_for(schedule)
