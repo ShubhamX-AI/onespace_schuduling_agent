@@ -1,6 +1,6 @@
 """Schedule CRUD + control endpoints. All responses use the standard envelope."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.core.exceptions import ValidationError
 from app.models.schedule import Schedule
@@ -8,6 +8,7 @@ from app.schemas.response import ApiResponse
 from app.schemas.schedule import (
     ScheduleCreate,
     ScheduleRead,
+    ScheduleRunRead,
     ScheduleUpdate,
     ValidateTriggerRequest,
 )
@@ -49,6 +50,15 @@ async def list_schedules() -> ApiResponse[list[ScheduleRead]]:
 async def get_schedule(schedule_id: str) -> ApiResponse[ScheduleRead]:
     schedule = await schedule_service.get_schedule(schedule_id)
     return ApiResponse.ok(_read(schedule), "Schedule retrieved")
+
+
+@router.get("/{schedule_id}/runs", response_model=ApiResponse[list[ScheduleRunRead]])
+async def list_runs(
+    schedule_id: str, limit: int = Query(default=20, ge=1, le=100)
+) -> ApiResponse[list[ScheduleRunRead]]:
+    """Recent run outcomes for a schedule, newest first."""
+    runs = await schedule_service.list_runs(schedule_id, limit)
+    return ApiResponse.ok([ScheduleRunRead.from_document(r) for r in runs], "Runs retrieved")
 
 
 @router.patch("/{schedule_id}", response_model=ApiResponse[ScheduleRead])

@@ -34,3 +34,6 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Put the project root on sys.path so `import app...` resolves without an
+# __init__.py / installed package.
+pythonpath = ["."]

@@ -13,11 +13,12 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from beanie import PydanticObjectId
+from bson.errors import InvalidId
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
-from app.models.schedule import Schedule, ScheduleStatus, TriggerType
-from app.scheduler import get_scheduler
+from app.models.schedule import Schedule, ScheduleRun, ScheduleStatus, TriggerType
 from app.scheduler.jobs import execute_schedule
+from app.scheduler.scheduler import get_scheduler
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate
 
 _TRIGGER_BUILDERS = {
@@ -120,8 +121,27 @@ async def list_schedules() -> list[Schedule]:
     return await Schedule.find_all().to_list()
 
 
+async def list_runs(schedule_id: str, limit: int) -> list[ScheduleRun]:
+    """Most recent runs for a schedule, newest first."""
+    object_id = _object_id(schedule_id)
+    return (
+        await ScheduleRun.find(ScheduleRun.schedule_id == object_id)
+        .sort(-ScheduleRun.finished_at)
+        .limit(limit)
+        .to_list()
+    )
+
+
+def _object_id(schedule_id: str) -> PydanticObjectId:
+    """Parse a path id; a malformed id is treated as 'not found' (404)."""
+    try:
+        return PydanticObjectId(schedule_id)
+    except (InvalidId, ValueError):
+        raise NotFoundError(f"Schedule '{schedule_id}' not found") from None
+
+
 async def get_schedule(schedule_id: str) -> Schedule:
-    schedule = await Schedule.get(PydanticObjectId(schedule_id))
+    schedule = await Schedule.get(_object_id(schedule_id))
     if schedule is None:
         raise NotFoundError(f"Schedule '{schedule_id}' not found")
     return schedule

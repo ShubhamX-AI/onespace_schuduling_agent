@@ -186,7 +186,7 @@ curl -X POST http://localhost:8000/api/v1/schedules/validate \
 
 ## 11. Check whether the last run succeeded
 
-`GET` the schedule and read its run fields.
+`GET` the schedule and read its summary fields.
 
 ```bash
 curl http://localhost:8000/api/v1/schedules/665f...
@@ -194,10 +194,47 @@ curl http://localhost:8000/api/v1/schedules/665f...
 
 ```json
 { "success": true, "message": "Schedule retrieved",
-  "data": { "last_run_at": "2026-06-12T13:00:01+00:00", "last_status": "success", "last_error": null, "next_run_at": "2026-06-13T13:00:00+00:00" } }
+  "data": { "last_run_at": "2026-06-12T13:00:01+00:00", "last_status": "success", "last_http_status": 200, "last_error": null, "next_run_at": "2026-06-13T13:00:00+00:00" } }
 ```
 
 A failed delivery shows `"last_status": "error"` with the reason in `last_error`.
+
+---
+
+## 12. See the full run history
+
+Every fire is recorded — not just the latest. Newest first:
+
+```bash
+curl "http://localhost:8000/api/v1/schedules/665f.../runs?limit=20"
+```
+
+Each record has `status`, `http_status`, a truncated `response_body`, `error`,
+and `started_at`/`finished_at`.
+
+---
+
+## 13. Get pushed a notification when it runs
+
+Set `notify_url` and the service POSTs the result to you after every fire — no
+polling. (Make the callback public; the [SSRF guard](concepts/actions.md#ssrf-protection)
+blocks private hosts unless `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`.)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/schedules \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "nightly-sync",
+    "trigger_type": "cron",
+    "trigger_args": { "hour": 1 },
+    "action": { "type": "webhook", "url": "https://worker/sync" },
+    "notify_url": "https://my-app/scheduler-callback"
+  }'
+```
+
+Your callback receives `{schedule_id, name, status, http_status, error,
+started_at, finished_at}`. Delivery is best-effort — a broken callback never
+fails the run itself.
 
 ---
 

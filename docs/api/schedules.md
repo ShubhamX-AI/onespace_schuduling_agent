@@ -10,6 +10,7 @@ Base path: **`/api/v1/schedules`**. Every response uses the
 | `POST` | `/api/v1/schedules/validate` | [Validate a trigger](#validate-a-trigger) (no save) |
 | `GET` | `/api/v1/schedules` | [List](#list-schedules) |
 | `GET` | `/api/v1/schedules/{id}` | [Get one](#get-a-schedule) |
+| `GET` | `/api/v1/schedules/{id}/runs` | [Run history](#run-history) |
 | `PATCH` | `/api/v1/schedules/{id}` | [Update](#update-a-schedule) |
 | `DELETE` | `/api/v1/schedules/{id}` | [Delete](#delete-a-schedule) |
 | `POST` | `/api/v1/schedules/{id}/pause` | [Pause](#pause) |
@@ -41,11 +42,13 @@ The object you get back in `data` from every schedule endpoint:
     "timeout_seconds": 30,
     "max_retries": 3
   },
+  "notify_url": "https://my-app/scheduler-callback",
   "status": "active",
   "next_run_at": "2026-06-12T13:00:00+00:00",
   "last_run_at": null,
   "last_status": null,
   "last_error": null,
+  "last_http_status": null,
   "created_at": "2026-06-11T15:04:05Z",
   "updated_at": "2026-06-11T15:04:05Z"
 }
@@ -73,9 +76,13 @@ Field meanings: see [Schedules](../concepts/schedules.md).
     "method": "POST",
     "url": "https://reporting-service/run",
     "headers": { "Authorization": "Bearer abc123" }
-  }
+  },
+  "notify_url": "https://my-app/scheduler-callback"
 }
 ```
+
+`notify_url` is optional — when set, the run result is POSTed there after each
+fire (see [notifications](../concepts/actions.md#notifications-push)).
 
 **Response** — `message: "Schedule created"`, `data` = the schedule object.
 
@@ -126,13 +133,39 @@ live `next_run_at`).
 
 ---
 
+## Run history
+
+`GET /api/v1/schedules/{id}/runs` → **200**
+
+Recent run outcomes, newest first. Query param `limit` (default 20, max 100).
+`message: "Runs retrieved"`, `data` = array of run objects:
+
+```json
+{
+  "id": "6660aa…",
+  "schedule_id": "665f1c2e8a4b9d0012345678",
+  "status": "error",
+  "http_status": 500,
+  "response_body": "{\"detail\":\"boom\"}",
+  "error": "POST https://… failed: Server error '500 …'",
+  "started_at": "2026-06-12T13:00:00+00:00",
+  "finished_at": "2026-06-12T13:00:04+00:00",
+  "notified": true
+}
+```
+
+`response_body` is truncated to `WEBHOOK_RESPONSE_MAX_CHARS`. `404` for an
+unknown/malformed id. See [run history & notifications](../concepts/actions.md#run-history).
+
+---
+
 ## Update a schedule
 
 `PATCH /api/v1/schedules/{id}` → **200**
 
 Send **only the fields you want to change** — all are optional. Updatable:
 `description`, `trigger_type`, `trigger_args`, `timezone`, `start_date`,
-`end_date`, `payload`, `action`, `status`.
+`end_date`, `payload`, `action`, `notify_url`, `status`.
 
 ```json
 { "trigger_args": { "hour": 10 }, "payload": { "report": "daily-v2" } }

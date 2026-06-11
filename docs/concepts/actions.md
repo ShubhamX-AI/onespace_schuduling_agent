@@ -76,6 +76,49 @@ A blocked target is recorded as an error:
     To target a listener on `localhost` during development or testing, set
     `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`. Leave it **off** in production.
 
+## Run history
+
+Every fire writes its own **run record** (never overwritten) to the
+`schedule_runs` collection, capturing: `status` (`success`/`error`), the
+webhook's `http_status`, a **truncated** `response_body` (capped by
+`WEBHOOK_RESPONSE_MAX_CHARS`, default 2048), `error`, and `started_at` /
+`finished_at`. Read them newest-first:
+
+```
+GET /api/v1/schedules/{id}/runs?limit=20
+```
+
+The schedule itself also keeps a quick summary of the latest run
+(`last_run_at`, `last_status`, `last_error`, `last_http_status`) for a cheap
+poll via `GET /schedules/{id}`.
+
+By default records are kept forever. Set `RUN_HISTORY_TTL_DAYS` to a positive
+number to auto-expire them via a MongoDB TTL index (`0` = keep forever) so
+history can't grow unbounded.
+
+## Notifications (push)
+
+Polling is optional. Set a **`notify_url`** on the schedule and the service
+**POSTs the run result there after every fire**:
+
+```json
+{
+  "schedule_id": "665f…",
+  "name": "daily-report",
+  "status": "success",
+  "http_status": 200,
+  "error": null,
+  "started_at": "2026-06-12T13:00:00+00:00",
+  "finished_at": "2026-06-12T13:00:01+00:00"
+}
+```
+
+The callback is **best-effort**: it uses the same [SSRF guard](#ssrf-protection),
+a short timeout, and **no retry**. If the callback itself fails, that failure is
+logged and recorded (`notified: false` on the run) — it never changes the run's
+own `status`. So your action succeeding and your notification arriving are
+independent outcomes.
+
 ## Coming later
 
 The action model is shaped so new types can be added without breaking the

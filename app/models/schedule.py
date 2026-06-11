@@ -5,9 +5,11 @@ from enum import StrEnum
 from typing import Any, Literal
 
 import pymongo
-from beanie import Document
+from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field, HttpUrl
 from pymongo import IndexModel
+
+from app.core.config import get_settings
 
 
 class TriggerType(StrEnum):
@@ -69,11 +71,14 @@ class Schedule(Document):
     # What to do on fire. Optional so legacy/log-only docs still load; new
     # schedules require it via ScheduleCreate.
     action: WebhookAction | None = None
+    # Optional callback: after each run the service POSTs the result here.
+    notify_url: HttpUrl | None = None
     status: ScheduleStatus = ScheduleStatus.ACTIVE
-    # Outcome of the most recent run, recorded by the scheduler event listener.
+    # Summary of the most recent run (full history lives in ScheduleRun).
     last_run_at: datetime | None = None
     last_status: RunStatus | None = None
     last_error: str | None = None
+    last_http_status: int | None = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
@@ -86,3 +91,40 @@ class Schedule(Document):
 
     def touch(self) -> None:
         self.updated_at = _utcnow()
+
+
+def _run_indexes() -> list[IndexModel]:
+    """Indexes for ScheduleRun: per-schedule newest-first, plus an optional TTL."""
+    indexes = [
+        IndexModel([("schedule_id", pymongo.ASCENDING), ("finished_at", pymongo.DESCENDING)])
+    ]
+    ttl_days = get_settings().run_history_ttl_days
+    if ttl_days > 0:
+        indexes.append(
+            IndexModel([("finished_at", pymongo.ASCENDING)], expireAfterSeconds=ttl_days * 86400)
+        )
+    return indexes
+
+
+class ScheduleRun(Document):
+    """One record per fire — the outcome of a single run (never overwritten)."""
+
+    schedule_id: PydanticObjectId
+    status: RunStatus
+    # HTTP status the webhook returned (None if the call never completed).
+    http_status: int | None = None
+    # Truncated response body, for debugging (capped by webhook_response_max_chars).
+    response_body: str | None = None
+    error: str | None = None
+    started_at: datetime
+    finished_at: datetime
+    # Whether the notify callback was delivered (only meaningful if notify_url set).
+    notified: bool = False
+
+    class Settings:
+        name = "schedule_runs"
+        indexes = _run_indexes()
+
+
+# Beanie document models registered on startup (see app/db/mongodb.py).
+DOCUMENT_MODELS = [Schedule, ScheduleRun]

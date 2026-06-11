@@ -9,7 +9,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.core.config import Settings
 from app.core.logging import get_logger
-from app.models import DOCUMENT_MODELS
+from app.models.schedule import DOCUMENT_MODELS
 
 logger = get_logger(__name__)
 

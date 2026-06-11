@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # Allow webhook targets on loopback/private IPs. Off in prod (SSRF guard);
     # turn on in dev/test to hit a local listener.
     webhook_allow_private_hosts: bool = False
+    # Max characters of a webhook's response body kept in the run record.
+    webhook_response_max_chars: int = 2048
+    # Timeout for the best-effort notify (callback) call.
+    notify_timeout_seconds: float = 10.0
+    # Days to keep run-history records (TTL index). 0 = keep forever.
+    run_history_ttl_days: int = 0
 
     # Built MkDocs site, served at /documentation. Run `mkdocs build` to create
     # it; if the directory is absent the route is simply not mounted.

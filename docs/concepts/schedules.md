@@ -38,6 +38,7 @@ A **schedule** is the unit you create, read, update, and delete. It bundles
 | `end_date` | no | `null` | Active-window end (`interval`/`cron` only). |
 | `payload` | no | `{}` | Sent as the webhook JSON body. |
 | `action` | **yes** | — | What to fire. See [Actions](actions.md). |
+| `notify_url` | no | `null` | Callback POSTed with each run's result. See [notifications](actions.md#notifications-push). |
 
 ## Read-only fields (returned, never sent)
 
@@ -50,6 +51,7 @@ These appear in every schedule response and are managed by the service:
 | `last_run_at` | When it last fired. `null` until the first run. |
 | `last_status` | Outcome of the last run: `success` or `error`. |
 | `last_error` | Error message from the last failed run, else `null`. |
+| `last_http_status` | HTTP status the webhook returned on the last run, else `null`. |
 | `status` | `active` (armed) or `paused` (kept, not firing). |
 | `created_at` / `updated_at` | Timestamps (UTC). |
 

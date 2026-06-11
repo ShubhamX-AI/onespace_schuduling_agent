@@ -11,7 +11,7 @@ from app.core.config import Settings, get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 from app.db.mongodb import close_mongo_connection, connect_to_mongo
-from app.scheduler import shutdown_scheduler, start_scheduler
+from app.scheduler.scheduler import shutdown_scheduler, start_scheduler
 
 logger = get_logger(__name__)
 

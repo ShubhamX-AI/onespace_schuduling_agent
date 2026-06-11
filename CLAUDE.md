@@ -52,7 +52,8 @@ app/
 - **One schedule = one APScheduler job**, job id == document id. `services/schedule_service.py` keeps DB and scheduler consistent: on a scheduler failure it rolls back / leaves the DB untouched (see `create_schedule`, `update_schedule`).
 - **Triggers** are timezone-aware: `build_trigger()` injects the schedule's IANA `timezone` (and optional start/end window) into the APScheduler trigger, so firing is independent of the host clock.
 - **Actions** are what a schedule *does* on fire (the WHEN is the trigger; the WHAT is the action). One type today — `webhook` (`models/schedule.py:WebhookAction`): the schedule's `payload` is sent as the HTTP body. The action model is shaped for future types (`queue`, `kafka`) without breaking the contract. Execution lives in `scheduler/actions.py:run_action` — SSRF-guarded (private/loopback hosts blocked unless `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`) and retried with exponential backoff up to `max_retries`.
-- **Run outcomes** are self-recorded: `scheduler/jobs.py:execute_schedule` takes only the schedule id, reloads the document (DB is the source of truth — no payload in jobstore kwargs), runs the action, and writes `last_run_at/last_status/last_error` back.
+- **Run outcomes** are self-recorded: `scheduler/jobs.py:execute_schedule` takes only the schedule id, reloads the document (DB is the source of truth — no payload in jobstore kwargs), runs the action, and writes `last_run_at/last_status/last_error/last_http_status` back.
+- **Run history + notify**: each fire also inserts a `ScheduleRun` document (`schedule_runs`, TTL-bounded by `run_history_ttl_days`) capturing status + HTTP code + truncated response body; read via `GET /schedules/{id}/runs`. If the schedule has a `notify_url`, `scheduler/actions.py:notify` POSTs the result there — best-effort (SSRF-guarded, no retry, failures only logged, never fail the run).
 
 ### Response envelope (every endpoint)
 

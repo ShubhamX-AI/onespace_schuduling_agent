@@ -207,4 +207,14 @@ are blocked. To target a local listener in dev/test, set
 `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`.
 
 Responses include the live **`next_run_at`** plus the last run's outcome
-(`last_run_at`, `last_status`, `last_error`), recorded automatically each fire.
+(`last_run_at`, `last_status`, `last_error`, `last_http_status`), recorded
+automatically each fire.
+
+### Run history & notifications
+
+Every fire writes a record (status, HTTP code, truncated response body,
+timestamps) to the `schedule_runs` collection — read newest-first via
+`GET /api/v1/schedules/{id}/runs`. Set a schedule's **`notify_url`** and the
+service POSTs each run's result there (best-effort, SSRF-guarded, no retry), so
+the creator is pushed an outcome instead of polling. History retention is
+bounded by `RUN_HISTORY_TTL_DAYS` (`0` = keep forever).
