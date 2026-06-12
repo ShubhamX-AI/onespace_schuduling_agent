@@ -22,13 +22,13 @@ payloads always live under `data`; `message` explains the outcome.
 A single schedule (`data` is an object):
 
 ```json
-{ "success": true, "message": "Schedule retrieved", "data": { "id": "665f…", "name": "morning-report" } }
+{ "success": true, "message": "Schedule retrieved", "data": { "id": "665f…", "owner_id": "team-alpha", "name": "morning-report" } }
 ```
 
 A list (`data` is an array):
 
 ```json
-{ "success": true, "message": "Schedules retrieved", "data": [ { "id": "665f…" }, { "id": "6660…" } ] }
+{ "success": true, "message": "Schedules retrieved", "data": [ { "id": "665f…", "owner_id": "team-alpha" }, { "id": "6660…", "owner_id": "team-alpha" } ] }
 ```
 
 No payload (e.g. delete):

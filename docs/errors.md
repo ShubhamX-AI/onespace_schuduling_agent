@@ -9,7 +9,8 @@ responses, with `success: false`. Check `success` first, then read `message`
 | Status | When | `message` example |
 | ------ | ---- | ----------------- |
 | `400` / `422` | Invalid request body, bad trigger args, unknown timezone | `Invalid trigger_args for cron: …` |
-| `404` | Schedule id not found | `Schedule '665f…' not found` |
+| `401` | Missing/blank `X-Owner-Id` header (every endpoint except `/validate`) | `Missing X-Owner-Id header` |
+| `404` | Schedule id not found, or owned by someone else | `Schedule '665f…' not found` |
 | `409` | A schedule with that `name` already exists | `Schedule 'morning-report' already exists` |
 | `500` | Unexpected server error | `Internal server error` |
 

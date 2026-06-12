@@ -7,6 +7,12 @@ All schedules need a `name`, a trigger, and an `action`. See
 [Triggers](concepts/triggers.md) and [Actions](concepts/actions.md) for the full
 option set.
 
+!!! info "Every example sends `X-Owner-Id`"
+    All endpoints below (except `/validate`) require an **`X-Owner-Id`** header
+    identifying you; schedules are scoped to that owner. The examples use
+    `team-alpha` — swap in your own id. Omit it and you get a `401`. See
+    [Ownership](concepts/schedules.md#ownership).
+
 ---
 
 ## 1. Send a reminder tomorrow at 10:00 (one-shot)
@@ -16,6 +22,7 @@ option set.
 ```bash
 curl -X POST http://localhost:8000/api/v1/schedules \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{
     "name": "reminder-user-123",
     "trigger_type": "date",
@@ -33,6 +40,7 @@ curl -X POST http://localhost:8000/api/v1/schedules \
 ```bash
 curl -X POST http://localhost:8000/api/v1/schedules \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{
     "name": "daily-report",
     "trigger_type": "cron",
@@ -54,6 +62,7 @@ curl -X POST http://localhost:8000/api/v1/schedules \
 ```bash
 curl -X POST http://localhost:8000/api/v1/schedules \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{
     "name": "poll-payments",
     "trigger_type": "interval",
@@ -71,6 +80,7 @@ curl -X POST http://localhost:8000/api/v1/schedules \
 ```bash
 curl -X POST http://localhost:8000/api/v1/schedules \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{
     "name": "q3-campaign",
     "trigger_type": "cron",
@@ -91,6 +101,7 @@ Set `method` and any headers your target needs.
 ```bash
 curl -X POST http://localhost:8000/api/v1/schedules \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{
     "name": "nightly-cache-purge",
     "trigger_type": "cron",
@@ -112,7 +123,8 @@ Two ways:
 **A — test an existing schedule immediately** (does not change its state):
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules/665f.../run
+curl -X POST http://localhost:8000/api/v1/schedules/665f.../run \
+  -H 'X-Owner-Id: team-alpha'
 ```
 
 **B — a true one-off** — create a `date` schedule with a `run_date` of now:
@@ -120,6 +132,7 @@ curl -X POST http://localhost:8000/api/v1/schedules/665f.../run
 ```bash
 curl -X POST http://localhost:8000/api/v1/schedules \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{
     "name": "kickoff-now",
     "trigger_type": "date",
@@ -150,8 +163,8 @@ Make your endpoint **idempotent** — retries can deliver the same call twice.
 ## 8. Pause and resume
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules/665f.../pause
-curl -X POST http://localhost:8000/api/v1/schedules/665f.../resume
+curl -X POST http://localhost:8000/api/v1/schedules/665f.../pause  -H 'X-Owner-Id: team-alpha'
+curl -X POST http://localhost:8000/api/v1/schedules/665f.../resume -H 'X-Owner-Id: team-alpha'
 ```
 
 Paused schedules keep their record but do not fire (`next_run_at` is `null`).
@@ -165,6 +178,7 @@ Send only the fields that change.
 ```bash
 curl -X PATCH http://localhost:8000/api/v1/schedules/665f... \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{ "trigger_args": { "hour": 10 }, "payload": { "report": "daily-v2" } }'
 ```
 
@@ -189,12 +203,13 @@ curl -X POST http://localhost:8000/api/v1/schedules/validate \
 `GET` the schedule and read its summary fields.
 
 ```bash
-curl http://localhost:8000/api/v1/schedules/665f...
+curl http://localhost:8000/api/v1/schedules/665f... \
+  -H 'X-Owner-Id: team-alpha'
 ```
 
 ```json
 { "success": true, "message": "Schedule retrieved",
-  "data": { "last_run_at": "2026-06-12T13:00:01+00:00", "last_status": "success", "last_http_status": 200, "last_error": null, "next_run_at": "2026-06-13T13:00:00+00:00" } }
+  "data": { "owner_id": "team-alpha", "last_run_at": "2026-06-12T13:00:01+00:00", "last_status": "success", "last_http_status": 200, "last_error": null, "next_run_at": "2026-06-13T13:00:00+00:00" } }
 ```
 
 A failed delivery shows `"last_status": "error"` with the reason in `last_error`.
@@ -206,7 +221,8 @@ A failed delivery shows `"last_status": "error"` with the reason in `last_error`
 Every fire is recorded — not just the latest. Newest first:
 
 ```bash
-curl "http://localhost:8000/api/v1/schedules/665f.../runs?limit=20"
+curl "http://localhost:8000/api/v1/schedules/665f.../runs?limit=20" \
+  -H 'X-Owner-Id: team-alpha'
 ```
 
 Each record has `status`, `http_status`, a truncated `response_body`, `error`,
@@ -223,6 +239,7 @@ blocks private hosts unless `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`.)
 ```bash
 curl -X POST http://localhost:8000/api/v1/schedules \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{
     "name": "nightly-sync",
     "trigger_type": "cron",

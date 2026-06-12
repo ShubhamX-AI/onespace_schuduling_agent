@@ -33,6 +33,7 @@ Create a schedule that calls a webhook every weekday at 09:00 New York time:
 ```bash
 curl -X POST http://localhost:8000/api/v1/schedules \
   -H 'Content-Type: application/json' \
+  -H 'X-Owner-Id: team-alpha' \
   -d '{
     "name": "morning-report",
     "trigger_type": "cron",
@@ -48,13 +49,17 @@ curl -X POST http://localhost:8000/api/v1/schedules \
   }'
 ```
 
+Every endpoint (except `/validate`) requires an **`X-Owner-Id`** header — schedules
+are scoped to that owner, so you only see your own. See
+[Ownership](concepts/schedules.md#ownership).
+
 Every response uses the same [envelope](concepts/response-envelope.md):
 
 ```json
 {
   "success": true,
   "message": "Schedule created",
-  "data": { "id": "665f...", "name": "morning-report", "next_run_at": "2026-06-12T13:00:00+00:00", "...": "..." }
+  "data": { "id": "665f...", "owner_id": "team-alpha", "name": "morning-report", "next_run_at": "2026-06-12T13:00:00+00:00", "...": "..." }
 }
 ```
 
