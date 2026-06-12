@@ -4,6 +4,13 @@ Base path: **`/api/v1/schedules`**. Every response uses the
 [envelope](../concepts/response-envelope.md). The schedule object returned in
 `data` is the [`ScheduleRead`](#the-schedule-object) shape below.
 
+!!! info "Every request needs an owner"
+    All schedule endpoints (except `/validate`) require an **`X-Owner-Id`**
+    request header. Schedules are scoped to that owner: you only ever see and
+    control your own. A missing/blank header returns `401`; another owner's
+    schedule id returns `404` (never leaks that it exists). See
+    [Ownership](../concepts/schedules.md#ownership).
+
 | Method | Path | Purpose |
 | ------ | ---- | ------- |
 | `POST` | `/api/v1/schedules` | [Create](#create-a-schedule) |
@@ -26,6 +33,7 @@ The object you get back in `data` from every schedule endpoint:
 ```json
 {
   "id": "665f1c2e8a4b9d0012345678",
+  "owner_id": "team-alpha",
   "name": "morning-report",
   "description": "Daily reporting kick-off",
   "trigger_type": "cron",
@@ -65,8 +73,8 @@ with the offending field(s) in `data` (see [Errors](../errors.md)):
 
 - **Unknown fields are rejected.** A typo like `"timezzone"` errors instead of
   being silently ignored.
-- **`name`** is trimmed and must be non-blank (≤ 128 chars). On `PATCH` it can be
-  changed (rename); a name already in use returns `409`.
+- **`name`** is trimmed and must be non-blank (≤ 128 chars), **unique per owner**.
+  On `PATCH` it can be changed (rename); a name already in use by you returns `409`.
 - **`description`** is trimmed; blank becomes `null` (≤ 512 chars).
 - **`timezone`** must be a resolvable IANA name (e.g. `America/New_York`).
 - **`trigger_args`** must not contain the reserved keys `timezone`,
@@ -149,7 +157,8 @@ live `next_run_at`).
 
 `GET /api/v1/schedules/{id}` → **200**
 
-`message: "Schedule retrieved"`, `data` = the schedule object. `404` if unknown.
+`message: "Schedule retrieved"`, `data` = the schedule object. `404` if unknown
+or owned by someone else.
 
 ---
 

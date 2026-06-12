@@ -101,11 +101,11 @@ def next_run_at(schedule_id: str) -> datetime | None:
     return job.next_run_time if job else None
 
 
-async def create_schedule(data: ScheduleCreate) -> Schedule:
-    if await Schedule.find_one(Schedule.name == data.name) is not None:
+async def create_schedule(data: ScheduleCreate, owner_id: str) -> Schedule:
+    if await _find_by_name(owner_id, data.name) is not None:
         raise ConflictError(f"Schedule '{data.name}' already exists")
 
-    schedule = Schedule(**data.model_dump())
+    schedule = Schedule(**data.model_dump(), owner_id=owner_id)
     # Validate trigger (incl. timezone) before persisting.
     _trigger_for(schedule)
     await schedule.insert()
@@ -119,15 +119,15 @@ async def create_schedule(data: ScheduleCreate) -> Schedule:
     return schedule
 
 
-async def list_schedules() -> list[Schedule]:
-    return await Schedule.find_all().to_list()
+async def list_schedules(owner_id: str) -> list[Schedule]:
+    return await Schedule.find(Schedule.owner_id == owner_id).to_list()
 
 
-async def list_runs(schedule_id: str, limit: int) -> list[ScheduleRun]:
+async def list_runs(schedule_id: str, owner_id: str, limit: int) -> list[ScheduleRun]:
     """Most recent runs for a schedule, newest first."""
-    object_id = _object_id(schedule_id)
+    schedule = await get_schedule(schedule_id, owner_id)  # 404 if not the caller's
     return (
-        await ScheduleRun.find(ScheduleRun.schedule_id == object_id)
+        await ScheduleRun.find(ScheduleRun.schedule_id == schedule.id)
         .sort(-ScheduleRun.finished_at)
         .limit(limit)
         .to_list()
@@ -142,23 +142,28 @@ def _object_id(schedule_id: str) -> PydanticObjectId:
         raise NotFoundError(f"Schedule '{schedule_id}' not found") from None
 
 
-async def get_schedule(schedule_id: str) -> Schedule:
+async def _find_by_name(owner_id: str, name: str) -> Schedule | None:
+    return await Schedule.find_one(Schedule.owner_id == owner_id, Schedule.name == name)
+
+
+async def get_schedule(schedule_id: str, owner_id: str) -> Schedule:
+    """Fetch a schedule by id, scoped to its owner. Another owner's id is a 404."""
     schedule = await Schedule.get(_object_id(schedule_id))
-    if schedule is None:
+    if schedule is None or schedule.owner_id != owner_id:
         raise NotFoundError(f"Schedule '{schedule_id}' not found")
     return schedule
 
 
-async def update_schedule(schedule_id: str, data: ScheduleUpdate) -> Schedule:
-    schedule = await get_schedule(schedule_id)
+async def update_schedule(schedule_id: str, data: ScheduleUpdate, owner_id: str) -> Schedule:
+    schedule = await get_schedule(schedule_id, owner_id)
     changes = data.model_dump(exclude_unset=True)
     if not changes:
         raise ValidationError("No fields to update")
 
     new_name = changes.get("name")
-    if new_name is not None and new_name != schedule.name:
-        if await Schedule.find_one(Schedule.name == new_name) is not None:
-            raise ConflictError(f"Schedule '{new_name}' already exists")
+    renaming = new_name is not None and new_name != schedule.name
+    if renaming and await _find_by_name(owner_id, new_name) is not None:
+        raise ConflictError(f"Schedule '{new_name}' already exists")
 
     for field, value in changes.items():
         setattr(schedule, field, value)
@@ -176,15 +181,15 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate) -> Schedule:
     return schedule
 
 
-async def delete_schedule(schedule_id: str) -> None:
-    schedule = await get_schedule(schedule_id)
+async def delete_schedule(schedule_id: str, owner_id: str) -> None:
+    schedule = await get_schedule(schedule_id, owner_id)
     _safe_remove_job(str(schedule.id))
     await schedule.delete()
 
 
-async def pause_schedule(schedule_id: str) -> Schedule:
+async def pause_schedule(schedule_id: str, owner_id: str) -> Schedule:
     """Stop a schedule from firing without deleting it."""
-    schedule = await get_schedule(schedule_id)
+    schedule = await get_schedule(schedule_id, owner_id)
     if schedule.status != ScheduleStatus.PAUSED:
         _safe_remove_job(str(schedule.id))
         schedule.status = ScheduleStatus.PAUSED
@@ -193,9 +198,9 @@ async def pause_schedule(schedule_id: str) -> Schedule:
     return schedule
 
 
-async def resume_schedule(schedule_id: str) -> Schedule:
+async def resume_schedule(schedule_id: str, owner_id: str) -> Schedule:
     """Re-arm a paused schedule."""
-    schedule = await get_schedule(schedule_id)
+    schedule = await get_schedule(schedule_id, owner_id)
     if schedule.status != ScheduleStatus.ACTIVE:
         schedule.status = ScheduleStatus.ACTIVE
         _register_job(schedule)
@@ -204,8 +209,8 @@ async def resume_schedule(schedule_id: str) -> Schedule:
     return schedule
 
 
-async def run_schedule_now(schedule_id: str) -> Schedule:
+async def run_schedule_now(schedule_id: str, owner_id: str) -> Schedule:
     """Fire the job once immediately, independent of its trigger."""
-    schedule = await get_schedule(schedule_id)
+    schedule = await get_schedule(schedule_id, owner_id)
     await execute_schedule(str(schedule.id))
     return schedule

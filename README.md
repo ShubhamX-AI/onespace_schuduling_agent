@@ -147,8 +147,15 @@ Errors keep the same shape (`success: false`, `data: null`); validation errors
   "data": [{ "field": "body.name", "error": "Field required" }] }
 ```
 
+**Ownership.** Every schedule endpoint (except `/validate`) requires an
+**`X-Owner-Id`** header; schedules are scoped to that owner, so callers only see
+and control their own (another owner's id returns `404`, a missing header `401`).
+Names are unique *per owner*. This is tenant partitioning, not authentication —
+the header is trusted as-is, so front it with an authenticating gateway in
+production. See [docs/concepts/schedules.md](docs/concepts/schedules.md#ownership).
+
 Request bodies are validated strictly: unknown fields are rejected, `name` is
-trimmed/non-blank (and renamable via `PATCH`, unique), `timezone` must be a valid
+trimmed/non-blank (renamable via `PATCH`, unique per owner), `timezone` must be a valid
 IANA name, `trigger_args` can't carry the reserved `timezone`/`start_date`/`end_date`
 keys, `start_date` must precede `end_date`, and webhook `headers` reject control
 characters. Full list: [docs/api/schedules.md](docs/api/schedules.md#validation-rules).

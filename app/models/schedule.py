@@ -80,6 +80,10 @@ def _utcnow() -> datetime:
 
 
 class Schedule(Document):
+    # Who owns this schedule. Set by the service from the X-Owner-Id header;
+    # every query is scoped to it so callers only see their own schedules.
+    # Defaults to "public" so legacy documents (created before scoping) still load.
+    owner_id: str = "public"
     name: str
     description: str | None = None
     trigger_type: TriggerType
@@ -92,8 +96,9 @@ class Schedule(Document):
     # Optional active window — the schedule only fires between these instants.
     start_date: datetime | None = None
     end_date: datetime | None = None
-    # Arbitrary payload handed to the job executor when the schedule fires.
-    # For a webhook action this is sent as the request body.
+    # The action's request body. Kept top-level (not inside `action`) so it is
+    # shared by every action type, present and future (queue/kafka). For a
+    # webhook action it is sent as the JSON request body.
     payload: dict[str, Any] = Field(default_factory=dict)
     # What to do on fire. Optional so legacy/log-only docs still load; new
     # schedules require it via ScheduleCreate.
@@ -112,7 +117,8 @@ class Schedule(Document):
     class Settings:
         name = "schedules"
         indexes = [
-            IndexModel([("name", pymongo.ASCENDING)], unique=True),
+            # Names are unique per owner, not globally.
+            IndexModel([("owner_id", pymongo.ASCENDING), ("name", pymongo.ASCENDING)], unique=True),
             IndexModel([("status", pymongo.ASCENDING)]),
         ]
 

@@ -37,6 +37,8 @@ async def client(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> AsyncIt
 
     app = create_app(settings)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    # Every schedule endpoint requires an owner; send one by default.
+    headers = {"X-Owner-Id": "test-owner"}
+    async with AsyncClient(transport=transport, base_url="http://test", headers=headers) as ac:
         async with app.router.lifespan_context(app):
             yield ac

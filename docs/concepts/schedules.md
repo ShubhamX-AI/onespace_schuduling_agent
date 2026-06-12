@@ -29,7 +29,7 @@ A **schedule** is the unit you create, read, update, and delete. It bundles
 
 | Field | Required | Default | Notes |
 | ----- | -------- | ------- | ----- |
-| `name` | **yes** | — | 1–128 chars. **Unique** across all schedules. |
+| `name` | **yes** | — | 1–128 chars. **Unique per owner** (two owners may reuse the same name). |
 | `description` | no | `null` | Up to 512 chars. |
 | `trigger_type` | **yes** | — | `date` \| `interval` \| `cron`. See [Triggers](triggers.md). |
 | `trigger_args` | no | `{}` | Native APScheduler args for the trigger type. |
@@ -47,6 +47,7 @@ These appear in every schedule response and are managed by the service:
 | Field | Meaning |
 | ----- | ------- |
 | `id` | The schedule's id (also the scheduler job id). |
+| `owner_id` | Who owns the schedule (from the `X-Owner-Id` header at create). See [Ownership](#ownership). |
 | `next_run_at` | Live next fire time, read from the scheduler. `null` if paused/expired. |
 | `last_run_at` | When it last fired. `null` until the first run. |
 | `last_status` | Outcome of the last run: `success` or `error`. |
@@ -70,6 +71,30 @@ create ──▶ active ──(pause)──▶ paused ──(resume)──▶ ac
 - **run now** — fire once immediately, off-schedule, without changing state.
 
 See the [API Reference](../api/schedules.md) for the endpoints behind each transition.
+
+## Ownership
+
+The service is multi-tenant by **owner**. Every schedule endpoint (except
+`/validate`) requires an **`X-Owner-Id`** request header that identifies the
+caller:
+
+```
+GET /api/v1/schedules
+X-Owner-Id: team-alpha
+```
+
+- **Isolation** — `list` returns only your schedules; `get`/`update`/`delete`/
+  `pause`/`resume`/`run`/`runs` on an id you don't own return `404` (so existence
+  isn't leaked). The `owner_id` is taken from the header at create time and is
+  never accepted in a request body.
+- **Names are unique per owner** — `team-alpha` and `team-beta` can each have a
+  schedule named `daily`.
+- **Missing header → `401`.**
+
+!!! warning "This is partitioning, not authentication"
+    The `X-Owner-Id` header is trusted as-is — anyone can send any value. It
+    separates tenants but does **not** prove identity. Put an authenticating
+    gateway (API key / JWT → owner id) in front of this service in production.
 
 ## Why models and the API contract differ
 

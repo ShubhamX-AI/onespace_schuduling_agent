@@ -73,6 +73,9 @@ class ScheduleCreate(BaseModel):
     timezone: str = "UTC"
     start_date: datetime | None = None
     end_date: datetime | None = None
+    # The action's request body, kept top-level (not inside `action`) so it is
+    # shared by every action type. For a webhook it is sent as the JSON body.
+    # See docs/concepts/actions.md.
     payload: dict[str, Any] = Field(default_factory=dict)
     # What to fire when the trigger hits.
     action: WebhookAction
@@ -123,6 +126,7 @@ class ScheduleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    owner_id: str
     name: str
     description: str | None
     trigger_type: TriggerType
@@ -147,6 +151,7 @@ class ScheduleRead(BaseModel):
     def from_document(cls, doc: Schedule, next_run_at: datetime | None = None) -> "ScheduleRead":
         return cls(
             id=str(doc.id),
+            owner_id=doc.owner_id,
             name=doc.name,
             description=doc.description,
             trigger_type=doc.trigger_type,

@@ -28,6 +28,11 @@ class AppError(Exception):
         super().__init__(self.message)
 
 
+class AuthError(AppError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    message = "Not authenticated"
+
+
 class NotFoundError(AppError):
     status_code = status.HTTP_404_NOT_FOUND
     message = "Resource not found"
