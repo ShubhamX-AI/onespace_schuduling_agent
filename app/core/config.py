@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     mongodb_db: str = "onespace_scheduler_scheduling"
 
     # Scheduler
-    scheduler_jobs_collection: str = "onespace_scheduler_apscheduler_jobs"
+    scheduler_jobs_collection: str = "onespace_scheduler_jobs"
     scheduler_timezone: str = "UTC"
 
     # Webhook actions
