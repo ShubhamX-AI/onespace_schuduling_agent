@@ -79,7 +79,7 @@ A blocked target is recorded as an error:
 ## Run history
 
 Every fire writes its own **run record** (never overwritten) to the
-`schedule_runs` collection, capturing: `status` (`success`/`error`), the
+`onespace_scheduler_schedule_runs` collection, capturing: `status` (`success`/`error`), the
 webhook's `http_status`, a **truncated** `response_body` (capped by
 `WEBHOOK_RESPONSE_MAX_CHARS`, default 2048), `error`, and `started_at` /
 `finished_at`. Read them newest-first:

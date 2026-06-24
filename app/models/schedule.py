@@ -115,7 +115,7 @@ class Schedule(Document):
     updated_at: datetime = Field(default_factory=_utcnow)
 
     class Settings:
-        name = "schedules"
+        name = "onespace_scheduler_schedules"
         indexes = [
             # Names are unique per owner, not globally.
             IndexModel([("owner_id", pymongo.ASCENDING), ("name", pymongo.ASCENDING)], unique=True),
@@ -155,7 +155,7 @@ class ScheduleRun(Document):
     notified: bool = False
 
     class Settings:
-        name = "schedule_runs"
+        name = "onespace_scheduler_schedule_runs"
         indexes = _run_indexes()
 
 

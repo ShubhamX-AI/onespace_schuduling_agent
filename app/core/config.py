@@ -26,10 +26,10 @@ class Settings(BaseSettings):
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"
-    mongodb_db: str = "onespace_scheduling"
+    mongodb_db: str = "onespace_scheduler_scheduling"
 
     # Scheduler
-    scheduler_jobs_collection: str = "apscheduler_jobs"
+    scheduler_jobs_collection: str = "onespace_scheduler_apscheduler_jobs"
     scheduler_timezone: str = "UTC"
 
     # Webhook actions

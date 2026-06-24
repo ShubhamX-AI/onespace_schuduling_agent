@@ -246,7 +246,7 @@ automatically each fire.
 ### Run history & notifications
 
 Every fire writes a record (status, HTTP code, truncated response body,
-timestamps) to the `schedule_runs` collection — read newest-first via
+timestamps) to the `onespace_scheduler_schedule_runs` collection — read newest-first via
 `GET /api/v1/schedules/{id}/runs`. Set a schedule's **`notify_url`** and the
 service POSTs each run's result there (best-effort, SSRF-guarded, no retry), so
 the creator is pushed an outcome instead of polling. History retention is
