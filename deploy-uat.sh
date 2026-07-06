@@ -12,7 +12,7 @@ if [ ! -f .env ]; then
 fi
 
 echo "Git pulling latest changes..."
-git pull origin Dev
+git pull origin main
 
 echo "📦 Building and starting containers..."
 docker compose up -d --build
