@@ -2,6 +2,10 @@
 name = "onespace-schuduling-agent"
 version = "0.1.0"
 description = "Production-grade scheduling service backend (FastAPI + MongoDB + APScheduler)."
+license = "BUSL-1.1"
+authors = [
+    { name = "Indus Net Technologies Private Limited", email = "tech@intglobal.com" },
+]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -18,11 +22,16 @@ dependencies = [
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.8.0",
 ]
 docs = [
     "mkdocs-material>=9.5.0",
 ]
+
+[project.urls]
+Homepage = "https://intglobal.com/onespace"
+Repository = "https://bitbucket.org/Indus_Net/onespace_schuduling_agent"
 
 [tool.ruff]
 line-length = 100
@@ -34,6 +43,20 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-# Put the project root on sys.path so `import app...` resolves without an
-# __init__.py / installed package.
+# Match `test_*.py` only, deliberately not pytest's default that also matches
+# `*_test.py` — a source module named e.g. `v1_test.py` is a request model.
+python_files = ["test_*.py"]
+# Put the project root on sys.path so `import src...` / `import server` resolve
+# without an __init__.py / installed package.
 pythonpath = ["."]
+# Coverage on by default; 80% floor enforced (see [tool.coverage.report]).
+addopts = "--cov=src --cov-report=term-missing"
+# Starlette 0.4x deprecates httpx in favour of httpx2 inside its TestClient
+# (used to assert the 500 envelope with raise_server_exceptions=False).
+filterwarnings = ["ignore::starlette.exceptions.StarletteDeprecationWarning"]
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.coverage.report]
+fail_under = 80

@@ -31,7 +31,7 @@ whatever service receives it.
 Create a schedule that calls a webhook every weekday at 09:00 New York time:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules \
+curl -X POST http://localhost:3011/api/v1/schedules \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{

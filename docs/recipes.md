@@ -1,7 +1,7 @@
 # Recipes
 
 Worked examples for every kind of scheduling. Each is a ready-to-run `curl`
-against `http://localhost:8000`. Swap the `url` for your own endpoint.
+against `http://localhost:3011`. Swap the `url` for your own endpoint.
 
 All schedules need a `name`, a trigger, and an `action`. See
 [Triggers](concepts/triggers.md) and [Actions](concepts/actions.md) for the full
@@ -20,7 +20,7 @@ option set.
 `date` trigger fires once, then the schedule goes idle.
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules \
+curl -X POST http://localhost:3011/api/v1/schedules \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{
@@ -38,7 +38,7 @@ curl -X POST http://localhost:8000/api/v1/schedules \
 ## 2. Run a report every weekday at 09:00 (recurring cron)
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules \
+curl -X POST http://localhost:3011/api/v1/schedules \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{
@@ -60,7 +60,7 @@ curl -X POST http://localhost:8000/api/v1/schedules \
 ## 3. Poll a service every 15 minutes (recurring interval)
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules \
+curl -X POST http://localhost:3011/api/v1/schedules \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{
@@ -78,7 +78,7 @@ curl -X POST http://localhost:8000/api/v1/schedules \
 `start_date` / `end_date` bound an `interval` or `cron` schedule.
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules \
+curl -X POST http://localhost:3011/api/v1/schedules \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{
@@ -99,7 +99,7 @@ curl -X POST http://localhost:8000/api/v1/schedules \
 Set `method` and any headers your target needs.
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules \
+curl -X POST http://localhost:3011/api/v1/schedules \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{
@@ -123,14 +123,14 @@ Two ways:
 **A — test an existing schedule immediately** (does not change its state):
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules/665f.../run \
+curl -X POST http://localhost:3011/api/v1/schedules/665f.../run \
   -H 'X-Owner-Id: team-alpha'
 ```
 
 **B — a true one-off** — create a `date` schedule with a `run_date` of now:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules \
+curl -X POST http://localhost:3011/api/v1/schedules \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{
@@ -163,8 +163,8 @@ Make your endpoint **idempotent** — retries can deliver the same call twice.
 ## 8. Pause and resume
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules/665f.../pause  -H 'X-Owner-Id: team-alpha'
-curl -X POST http://localhost:8000/api/v1/schedules/665f.../resume -H 'X-Owner-Id: team-alpha'
+curl -X POST http://localhost:3011/api/v1/schedules/665f.../pause  -H 'X-Owner-Id: team-alpha'
+curl -X POST http://localhost:3011/api/v1/schedules/665f.../resume -H 'X-Owner-Id: team-alpha'
 ```
 
 Paused schedules keep their record but do not fire (`next_run_at` is `null`).
@@ -176,7 +176,7 @@ Paused schedules keep their record but do not fire (`next_run_at` is `null`).
 Send only the fields that change.
 
 ```bash
-curl -X PATCH http://localhost:8000/api/v1/schedules/665f... \
+curl -X PATCH http://localhost:3011/api/v1/schedules/665f... \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{ "trigger_args": { "hour": 10 }, "payload": { "report": "daily-v2" } }'
@@ -191,7 +191,7 @@ The change applies on the next fire.
 Check a tricky cron/timezone first; nothing is saved.
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules/validate \
+curl -X POST http://localhost:3011/api/v1/schedules/validate \
   -H 'Content-Type: application/json' \
   -d '{ "trigger_type": "cron", "trigger_args": { "hour": 9, "day_of_week": "mon-fri" }, "timezone": "Asia/Kolkata" }'
 ```
@@ -203,7 +203,7 @@ curl -X POST http://localhost:8000/api/v1/schedules/validate \
 `GET` the schedule and read its summary fields.
 
 ```bash
-curl http://localhost:8000/api/v1/schedules/665f... \
+curl http://localhost:3011/api/v1/schedules/665f... \
   -H 'X-Owner-Id: team-alpha'
 ```
 
@@ -221,7 +221,7 @@ A failed delivery shows `"last_status": "error"` with the reason in `last_error`
 Every fire is recorded — not just the latest. Newest first:
 
 ```bash
-curl "http://localhost:8000/api/v1/schedules/665f.../runs?limit=20" \
+curl "http://localhost:3011/api/v1/schedules/665f.../runs?limit=20" \
   -H 'X-Owner-Id: team-alpha'
 ```
 
@@ -237,7 +237,7 @@ polling. (Make the callback public; the [SSRF guard](concepts/actions.md#ssrf-pr
 blocks private hosts unless `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`.)
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules \
+curl -X POST http://localhost:3011/api/v1/schedules \
   -H 'Content-Type: application/json' \
   -H 'X-Owner-Id: team-alpha' \
   -d '{
@@ -255,7 +255,7 @@ fails the run itself.
 
 ---
 
-## 12. Local testing against `localhost`
+## 14. Local testing against `localhost`
 
 The [SSRF guard](concepts/actions.md#ssrf-protection) blocks private hosts by
 default. To hit a listener on your machine during development:
@@ -263,6 +263,12 @@ default. To hit a listener on your machine during development:
 ```bash
 export WEBHOOK_ALLOW_PRIVATE_HOSTS=true
 # now an action url of http://127.0.0.1:9000/hook is allowed
+```
+
+On Windows (PowerShell), the same switch is:
+
+```powershell
+$env:WEBHOOK_ALLOW_PRIVATE_HOSTS = "true"
 ```
 
 Keep this **off** in production.

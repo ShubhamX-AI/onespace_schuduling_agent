@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Licensed under the Business Source License 1.1 (BUSL-1.1)
+# See LICENSE in the project root for terms.
 # syntax=docker/dockerfile:1
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
@@ -12,7 +15,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
 # Install the project.
-COPY app ./app
+COPY server.py ./
+COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
@@ -29,7 +33,8 @@ WORKDIR /app
 
 # Copy the prepared virtual environment, source, built docs, and entrypoint.
 COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/app /app/app
+COPY --from=builder /app/server.py /app/server.py
+COPY --from=builder /app/src /app/src
 COPY --from=builder /app/site /app/site
 COPY server_run.py ./
 

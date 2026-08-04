@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Licensed under the Business Source License 1.1 (BUSL-1.1)
+# See LICENSE file in the project root for full licence terms.
+# Additional Use Grant: internal deployment and modification only.
+# Commercial licensing: licensing@intglobal.com
 # server_run.py
 import os
 
@@ -16,7 +21,7 @@ def main():
         port,
         "--workers",
         workers,
-        "app.main:app",
+        "server:app",
     ]
 
     # Replace current process with Granian (Rust ASGI server, project's prod server).

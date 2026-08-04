@@ -80,7 +80,7 @@ Check a trigger spec without creating anything — see
 [`POST /validate`](../api/schedules.md#validate-a-trigger).
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/schedules/validate \
+curl -X POST http://localhost:3011/api/v1/schedules/validate \
   -H 'Content-Type: application/json' \
   -d '{ "trigger_type": "cron", "trigger_args": { "hour": 9 }, "timezone": "Asia/Kolkata" }'
 ```

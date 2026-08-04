@@ -9,131 +9,18 @@ Think of it as a programmable alarm clock for your other services: *"at this
 time, call this URL with this payload."* The scheduler keeps time and delivers
 the call; the work itself belongs to whatever service receives it.
 
-## Stack
+**Core model.** A `Schedule` document maps 1:1 to an APScheduler job (job id =
+document id). Create / update / delete / pause / resume keep the DB and scheduler
+in lockstep. Triggers are timezone-aware so a schedule fires at its intended
+local time regardless of the server's clock. Each run records its outcome
+(`last_run_at`, `last_status`, `last_error`) back on the document. On fire, the
+job executor (`src/scheduling/jobs.py`) reloads the schedule and runs its action
+via `src/scheduling/actions.py` — for a webhook, an HTTP call hardened against
+SSRF and retried with backoff.
 
-- **FastAPI** — async HTTP API
-- **MongoDB** + **Beanie 2.x** — document persistence (PyMongo native async driver)
-- **APScheduler** — job scheduling with a MongoDB-backed jobstore (jobs survive restarts)
-- **Granian** — Rust ASGI server for production / high-I/O (uvicorn for dev)
-- **uv** — dependency & environment management
+## Response envelope
 
-## Architecture
-
-The request flow goes one direction — **API → service → model → MongoDB** — and
-the scheduler is a side channel the service keeps in sync.
-
-```
-app/
-├── main.py            # app factory + lifespan: starts/stops Mongo + scheduler
-├── core/              # cross-cutting plumbing (no domain knowledge)
-│   ├── config.py      #   env-driven Settings
-│   ├── logging.py     #   logging setup
-│   └── exceptions.py  #   error types + handlers (emit the response envelope)
-├── db/mongodb.py      # AsyncMongoClient lifecycle + Beanie init + health ping
-├── models/            # Beanie Documents — how data lives in MongoDB
-├── schemas/           # Pydantic DTOs — the API contract (incl. ApiResponse envelope)
-├── services/          # business logic; the only place that mutates DB + scheduler
-├── scheduler/         # APScheduler engine + the job executor that runs on each fire
-└── api/v1/            # thin routers/endpoints: parse → call service → wrap in envelope
-```
-
-**Why `models/` and `schemas/` are separate** (they look similar but aren't): a
-model is the *database* shape (has `_id`, indexes); a schema is the *public API*
-shape. Keeping them apart lets the DB change without breaking clients, and hides
-internal fields. Endpoints never return a Document — they map it via
-`ScheduleRead.from_document(...)`.
-
-**Scheduling model**: each `Schedule` document maps 1:1 to an APScheduler job
-(job id = document id). Create / update / delete / pause / resume keep the DB and
-scheduler in lockstep. Triggers are timezone-aware so a schedule fires at its
-intended local time regardless of the server's clock. Each run records its
-outcome (`last_run_at`, `last_status`, `last_error`) back on the document. On
-fire, the job executor (`app/scheduler/jobs.py`) reloads the schedule and runs
-its action via `app/scheduler/actions.py` — for a webhook, an HTTP call hardened
-against SSRF and retried with backoff.
-
-## Setup
-
-```bash
-uv sync                 # install deps
-cp .env.example .env     # configure (defaults target localhost Mongo)
-```
-
-## Run
-
-With Docker (reads `MONGODB_URI`, `PORT`, and the rest from `.env`):
-
-```bash
-docker compose up --build
-```
-
-The container starts via `python server_run.py`, which execs **Granian** and
-binds the port from the `PORT` env (default **3011**). `WORKERS` controls the
-Granian process count.
-
-Locally for development (needs a running MongoDB), uvicorn with auto-reload:
-
-```bash
-uv run uvicorn app.main:app --reload
-```
-
-For production / high-I/O, run the same entrypoint the image uses — **Granian**
-(Rust ASGI server, higher throughput):
-
-```bash
-PORT=3011 WORKERS=4 python server_run.py
-# equivalently, the raw command it execs:
-uv run granian --interface asgi --host 0.0.0.0 --port 3011 --workers 4 app.main:app
-```
-
-FastAPI speaks ASGI, so Granian runs with `--interface asgi`. Scale concurrency
-with `WORKERS`; the async endpoints make this the high-I/O path.
-
-API docs at `http://localhost:$PORT/docs` (Swagger / OpenAPI) — e.g.
-<http://localhost:3011/docs>.
-
-## Deployment
-
-`deploy.sh` does a one-shot deploy on a host that has Docker + a populated
-`.env`:
-
-```bash
-./deploy.sh        # git pull → docker compose up -d --build → docker system prune
-```
-
-Env knobs that matter for serving: `PORT` (bind port, default 3011) and
-`WORKERS` (Granian processes). Everything else is in `.env.example`.
-
-## Documentation site
-
-A full usage guide (concepts, every endpoint with payloads + responses, and
-recipes for every scheduling pattern) is built with **MkDocs Material** from
-`docs/` and served by the app at **`/documentation`**.
-
-```bash
-uv sync --group docs                 # install docs toolchain (once)
-uv run mkdocs serve                  # live preview at http://localhost:8000 (docs only)
-uv run mkdocs build --strict         # build into ./site
-```
-
-Once `./site` exists, the running API serves it at
-`http://localhost:$PORT/documentation` (e.g. <http://localhost:3011/documentation>).
-The Docker image builds and bundles it
-automatically. If `./site` is absent, the route is simply not mounted (the API
-still runs).
-
-## Test & lint
-
-```bash
-uv run pytest                # run tests
-uv run pytest tests/test_health.py::test_health_returns_payload   # single test
-uv run ruff check .          # lint
-uv run ruff format .         # format
-```
-
-## API (v1)
-
-Every response uses one envelope — payloads always live under `data`:
+Every endpoint returns the same shape — payloads always live under `data`:
 
 ```json
 { "success": true, "message": "Schedule created", "data": { } }
@@ -147,18 +34,88 @@ Errors keep the same shape (`success: false`, `data: null`); validation errors
   "data": [{ "field": "body.name", "error": "Field required" }] }
 ```
 
+## Requirements
+
+- **Python 3.12+**
+- **MongoDB** — the only required external service (persistence + jobstore)
+- **uv** — dependency & environment management
+- Optional: the **docs** dependency group to build the MkDocs documentation site
+
+## Installation
+
+```bash
+uv sync                 # install deps
+cp .env.example .env     # configure (defaults target localhost Mongo)
+```
+
+**Locally for development** (needs a running MongoDB), uvicorn with auto-reload:
+
+```bash
+uv run uvicorn server:app --reload
+```
+
+**Production / high-I/O** — run the same entrypoint the image uses, **Granian**
+(Rust ASGI server):
+
+```bash
+PORT=3011 WORKERS=4 python server_run.py
+# equivalently, the raw command it execs:
+uv run granian --interface asgi --host 0.0.0.0 --port 3011 --workers 4 server:app
+```
+
+FastAPI speaks ASGI, so Granian runs with `--interface asgi`. Scale concurrency
+with `WORKERS`; the async endpoints make this the high-I/O path.
+
+**With Docker** (reads `MONGODB_URI`, `PORT`, and the rest from `.env`):
+
+```bash
+docker compose up --build
+```
+
+API docs at `http://localhost:$PORT/docs` (Swagger / OpenAPI) — e.g.
+<http://localhost:3011/docs>.
+
+**Test & lint:**
+
+```bash
+uv run pytest                # run tests
+uv run ruff check .          # lint
+uv run ruff format .         # format
+```
+
+## Environment
+
+All configuration is read from environment / `.env` by `src/core/config.py` —
+never via scattered `os.getenv` calls.
+
+| Variable | Default | Note |
+| -------- | ------- | ---- |
+| `APP_NAME` | `OneSpace Scheduling Service` | App title shown in OpenAPI docs |
+| `APP_ENV` | `development` | `development` / `production` |
+| `DEBUG` | `false` | FastAPI debug mode |
+| `LOG_LEVEL` | `INFO` | Log level |
+| `API_V1_PREFIX` | `/api/v1` | URL prefix for v1 routes |
+| `HOST` | `0.0.0.0` | Bind host (reserved — `server_run.py` binds `0.0.0.0`) |
+| `PORT` | `3011` | Bind port (read by `server_run.py` / docker-compose) |
+| `WORKERS` | `1` | Granian worker processes |
+| `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection string |
+| `MONGODB_DB` | `onespace_scheduler_scheduling` | Database name |
+| `SCHEDULER_JOBS_COLLECTION` | `onespace_scheduler_jobs` | APScheduler jobstore collection |
+| `SCHEDULER_TIMEZONE` | `UTC` | Scheduler default timezone |
+| `WEBHOOK_ALLOW_PRIVATE_HOSTS` | `false` | Allow webhook targets on loopback/private IPs (SSRF guard; enable only for dev/test) |
+| `WEBHOOK_RESPONSE_MAX_CHARS` | `2048` | Max chars of a webhook response body kept in each run record |
+| `NOTIFY_TIMEOUT_SECONDS` | `10` | Timeout for the best-effort notify callback |
+| `RUN_HISTORY_TTL_DAYS` | `0` | Days to keep run history (TTL); `0` = keep forever |
+| `DOCS_SITE_DIR` | `site` | Built MkDocs site, served at `/documentation` (route not mounted if absent) |
+
+## Endpoints
+
 **Ownership.** Every schedule endpoint (except `/validate`) requires an
 **`X-Owner-Id`** header; schedules are scoped to that owner, so callers only see
 and control their own (another owner's id returns `404`, a missing header `401`).
 Names are unique *per owner*. This is tenant partitioning, not authentication —
 the header is trusted as-is, so front it with an authenticating gateway in
 production. See [docs/concepts/schedules.md](docs/concepts/schedules.md#ownership).
-
-Request bodies are validated strictly: unknown fields are rejected, `name` is
-trimmed/non-blank (renamable via `PATCH`, unique per owner), `timezone` must be a valid
-IANA name, `trigger_args` can't carry the reserved `timezone`/`start_date`/`end_date`
-keys, `start_date` must precede `end_date`, and webhook `headers` reject control
-characters. Full list: [docs/api/schedules.md](docs/api/schedules.md#validation-rules).
 
 | Method | Path                            | Description                       |
 | ------ | ------------------------------- | --------------------------------- |
@@ -172,6 +129,12 @@ characters. Full list: [docs/api/schedules.md](docs/api/schedules.md#validation-
 | POST   | `/api/v1/schedules/{id}/pause`  | Pause (stop firing, keep record)  |
 | POST   | `/api/v1/schedules/{id}/resume` | Resume a paused schedule          |
 | POST   | `/api/v1/schedules/{id}/run`    | Fire once immediately, off-schedule |
+
+Request bodies are validated strictly: unknown fields are rejected, `name` is
+trimmed/non-blank (renamable via `PATCH`, unique per owner), `timezone` must be a valid
+IANA name, `trigger_args` can't carry the reserved `timezone`/`start_date`/`end_date`
+keys, `start_date` must precede `end_date`, and webhook `headers` reject control
+characters. Full list: [docs/api/schedules.md](docs/api/schedules.md#validation-rules).
 
 ### Triggers
 
@@ -251,3 +214,99 @@ timestamps) to the `onespace_scheduler_schedule_runs` collection — read newest
 service POSTs each run's result there (best-effort, SSRF-guarded, no retry), so
 the creator is pushed an outcome instead of polling. History retention is
 bounded by `RUN_HISTORY_TTL_DAYS` (`0` = keep forever).
+
+## Project Structure
+
+Request flow is one direction — **API → service → model → MongoDB** — and the
+scheduler is a side channel the service keeps in sync. Layering is enforced:
+`core/` and `scheduling/` never import `api/`.
+
+```
+server.py                   # app entry: factory + lifespan + exception handlers + docs mount
+server_run.py               # production runner: execs Granian with server:app
+src/
+├── api/                    # HTTP surface — thin routes, no business logic
+│   ├── models/             #   Pydantic DTOs — the API contract (response envelope + schedule)
+│   └── routes/v1/          #   endpoints + shared deps (_common.py: X-Owner-Id)
+├── core/                   # cross-cutting plumbing, depends on nothing domain-specific
+│   ├── config.py           #   Settings (pydantic-settings, env-driven) + get_settings()
+│   ├── exceptions.py       #   AppError hierarchy + handlers that emit the envelope
+│   ├── db/                 #   db_connect.py (lifecycle) + db_schema.py (Beanie Documents)
+│   └── logging/logger.py   #   logging setup + get_logger()
+└── scheduling/             # domain: business logic + the APScheduler engine
+    ├── schedule_service.py #   keeps DB and scheduler in sync
+    ├── scheduler.py        #   AsyncIOScheduler + MongoDB jobstore
+    ├── jobs.py             #   job executor (fires a schedule's action)
+    └── actions.py          #   webhook action runner + notify callback
+tests/                      # pytest suite, mirrors src/ layout
+docs/                       # MkDocs usage guide, built and served at /documentation
+```
+
+**Why `models/` (DB) and `schemas`-style DTOs are separate:** `src/core/db/db_schema.py`
+holds the Beanie *Documents* — the DB shape (`_id`, indexes); `src/api/models/`
+holds the public API DTOs. Endpoints never return a Document — they map it via
+`ScheduleRead.from_document(...)` so the DB can change without breaking clients.
+
+## Data stores
+
+All data lives in the `onespace_scheduler_scheduling` MongoDB database.
+
+| Collection | What it holds | Keyed by |
+| ---------- | ------------- | -------- |
+| `onespace_scheduler_schedules` | Schedule documents (the persisted definition of each scheduled job) | `(owner_id, name)` unique index; `status` index |
+| `onespace_scheduler_schedule_runs` | One record per fire — status, HTTP code, truncated response body, timestamps | `(schedule_id, finished_at)` index, newest-first; optional TTL on `finished_at` |
+| `onespace_scheduler_jobs` | APScheduler's MongoDB jobstore — jobs survive restarts | job id == schedule document id |
+
+## Stack
+
+| Layer | Technology |
+| ----- | ---------- |
+| API | FastAPI (async) |
+| Persistence | MongoDB via Beanie 2.x ODM (PyMongo native async driver) |
+| Scheduling | APScheduler (AsyncIOScheduler + MongoDB jobstore) |
+| Server | Granian (prod) / uvicorn (dev) |
+| Env & deps | uv |
+| Docs | MkDocs Material |
+
+## Deployment
+
+`deploy.sh` does a one-shot deploy on a host that has Docker + a populated
+`.env`:
+
+```bash
+./deploy.sh        # git pull → docker compose up -d --build → docker system prune
+```
+
+Env knobs that matter for serving: `PORT` (bind port, default 3011) and
+`WORKERS` (Granian processes). Everything else is in `.env.example`.
+
+## Documentation site
+
+A full usage guide (concepts, every endpoint with payloads + responses, and
+recipes for every scheduling pattern) is built with **MkDocs Material** from
+`docs/` and served by the app at **`/documentation`**.
+
+```bash
+uv sync --group docs                 # install docs toolchain (once)
+uv run mkdocs serve                  # live preview at http://localhost:8000 (docs only)
+uv run mkdocs build --strict         # build into ./site
+```
+
+Once `./site` exists, the running API serves it at
+`http://localhost:$PORT/documentation` (e.g. <http://localhost:3011/documentation>).
+The Docker image builds and bundles it
+automatically. If `./site` is absent, the route is simply not mounted (the API
+still runs).
+
+## Licence
+
+Copyright (c) 2026 Indus Net Technologies Private Limited.
+
+OneSpace is licensed under the [Business Source License 1.1 (BUSL-1.1)](LICENSE).
+
+You may use, copy, modify, and distribute this software for your own internal
+business purposes. Commercial use, redistribution, white-labelling, or hosting
+this software as a service for third parties requires a separate commercial
+licence from INT.
+
+For licensing enquiries: licensing@intglobal.com

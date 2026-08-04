@@ -15,15 +15,15 @@ uv sync                      # install/lock deps
 cp .env.example .env          # configure (MONGODB_URI etc.)
 
 # Run
-uv run uvicorn app.main:app --reload                                   # dev (auto-reload)
-uv run granian --interface asgi --host 0.0.0.0 --port 8000 app.main:app # prod / high-I/O
+uv run uvicorn server:app --reload                                   # dev (auto-reload)
+uv run granian --interface asgi --host 0.0.0.0 --port 8000 server:app # prod / high-I/O
 docker compose up --build                                              # api + mongo
 
 # Quality gates — run all three before calling work done
 uv run ruff check .                                  # lint
 uv run ruff format .                                 # format
 uv run pytest -q                                     # all tests
-uv run pytest tests/test_trigger.py::test_interval_trigger_builds   # single test
+uv run pytest tests/scheduling/test_schedule_service.py::test_interval_trigger_builds   # single test
 ```
 
 ## Architecture
@@ -31,34 +31,38 @@ uv run pytest tests/test_trigger.py::test_interval_trigger_builds   # single tes
 Request flow is one direction: **API → service → model → MongoDB**. The scheduler is a side channel the service keeps in sync.
 
 ```
-app/
-├── main.py            # app factory + lifespan: starts/stops Mongo + scheduler
-├── core/              # cross-cutting plumbing, depends on nothing domain-specific
-│   ├── config.py      #   Settings (pydantic-settings, env-driven) + get_settings()
-│   ├── logging.py     #   logging config
-│   └── exceptions.py  #   AppError hierarchy + handlers that emit the envelope
-├── db/mongodb.py      # AsyncMongoClient lifecycle + init_beanie + ping
-├── models/            # Beanie Documents — how data lives in MongoDB
-├── schemas/           # Pydantic DTOs — the API contract (in/out), incl. ApiResponse
-├── services/          # business logic; the ONLY place that mutates models + scheduler
-├── scheduler/         # APScheduler engine (scheduler.py) + job executor (jobs.py)
-└── api/v1/            # routers + endpoints (thin: parse → call service → wrap)
+server.py            # app entry: factory + lifespan + exception handlers + docs mount
+server_run.py        # production runner: execs Granian with server:app
+src/
+├── api/             # HTTP surface — thin routes, no business logic
+│   ├── models/      #   Pydantic DTOs — the API contract (response envelope + schedule)
+│   └── routes/v1/   #   endpoints + shared deps (_common.py: X-Owner-Id)
+├── core/            # cross-cutting plumbing, depends on nothing domain-specific
+│   ├── config.py    #   Settings (pydantic-settings, env-driven) + get_settings()
+│   ├── exceptions.py#   AppError hierarchy + handlers that emit the envelope
+│   ├── db/          #   db_connect.py (lifecycle) + db_schema.py (Beanie Documents)
+│   └── logging/logger.py   # logging setup + get_logger()
+└── scheduling/      # domain: business logic + the APScheduler engine
+    ├── schedule_service.py  # keeps DB and scheduler in sync
+    ├── scheduler.py         # AsyncIOScheduler + MongoDB jobstore
+    ├── jobs.py              # job executor (fires a schedule's action)
+    └── actions.py           # webhook action runner + notify callback
 ```
 
 ### Rules that keep it clean
 
-- **Layer direction**: inner layers never import outer ones. `core/` and `scheduler/` know nothing about `api/`. Business rules live in `services/`, never in endpoints.
-- **models vs schemas are deliberately separate** — a `models/` Document is the DB shape (has `_id`, indexes); a `schemas/` DTO is the public API shape. Never return a Document directly; map it with `ScheduleRead.from_document(...)`. This lets the DB change without breaking clients.
-- **Ownership (multi-tenant)**: every schedule has an `owner_id`. Endpoints (except `/validate`) require an `X-Owner-Id` header → `api/deps.py:current_owner` (missing/blank = 401 `AuthError`). The service scopes *every* query by `owner_id`: `get_schedule(id, owner_id)` 404s on a mismatch (no existence leak), `name` is unique per `(owner_id, name)`. It's trust-on-header partitioning, **not** auth — an upstream gateway is assumed to set the header.
-- **One schedule = one APScheduler job**, job id == document id. `services/schedule_service.py` keeps DB and scheduler consistent: on a scheduler failure it rolls back / leaves the DB untouched (see `create_schedule`, `update_schedule`).
+- **Layer direction**: inner layers never import outer ones. `core/` and `scheduling/` know nothing about `api/`. Business rules live in `src/scheduling/`, never in endpoints.
+- **models vs schemas are deliberately separate** — `src/core/db/db_schema.py` Documents are the DB shape (has `_id`, indexes); `src/api/models/` DTOs are the public API shape. Never return a Document directly; map it with `ScheduleRead.from_document(...)`. This lets the DB change without breaking clients.
+- **Ownership (multi-tenant)**: every schedule has an `owner_id`. Endpoints (except `/validate`) require an `X-Owner-Id` header → `src/api/routes/v1/_common.py:current_owner` (missing/blank = 401 `AuthError`). The service scopes *every* query by `owner_id`: `get_schedule(id, owner_id)` 404s on a mismatch (no existence leak), `name` is unique per `(owner_id, name)`. It's trust-on-header partitioning, **not** auth — an upstream gateway is assumed to set the header.
+- **One schedule = one APScheduler job**, job id == document id. `src/scheduling/schedule_service.py` keeps DB and scheduler consistent: on a scheduler failure it rolls back / leaves the DB untouched (see `create_schedule`, `update_schedule`).
 - **Triggers** are timezone-aware: `build_trigger()` injects the schedule's IANA `timezone` (and optional start/end window) into the APScheduler trigger, so firing is independent of the host clock.
-- **Actions** are what a schedule *does* on fire (the WHEN is the trigger; the WHAT is the action). One type today — `webhook` (`models/schedule.py:WebhookAction`): the schedule's `payload` is sent as the HTTP body. The action model is shaped for future types (`queue`, `kafka`) without breaking the contract. Execution lives in `scheduler/actions.py:run_action` — SSRF-guarded (private/loopback hosts blocked unless `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`) and retried with exponential backoff up to `max_retries`.
-- **Run outcomes** are self-recorded: `scheduler/jobs.py:execute_schedule` takes only the schedule id, reloads the document (DB is the source of truth — no payload in jobstore kwargs), runs the action, and writes `last_run_at/last_status/last_error/last_http_status` back.
-- **Run history + notify**: each fire also inserts a `ScheduleRun` document (`onespace_scheduler_schedule_runs`, TTL-bounded by `run_history_ttl_days`) capturing status + HTTP code + truncated response body; read via `GET /schedules/{id}/runs`. If the schedule has a `notify_url`, `scheduler/actions.py:notify` POSTs the result there — best-effort (SSRF-guarded, no retry, failures only logged, never fail the run).
+- **Actions** are what a schedule *does* on fire (the WHEN is the trigger; the WHAT is the action). One type today — `webhook` (`src/core/db/db_schema.py:WebhookAction`): the schedule's `payload` is sent as the HTTP body. The action model is shaped for future types (`queue`, `kafka`) without breaking the contract. Execution lives in `src/scheduling/actions.py:run_action` — SSRF-guarded (private/loopback hosts blocked unless `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`) and retried with exponential backoff up to `max_retries`.
+- **Run outcomes** are self-recorded: `src/scheduling/jobs.py:execute_schedule` takes only the schedule id, reloads the document (DB is the source of truth — no payload in jobstore kwargs), runs the action, and writes `last_run_at/last_status/last_error/last_http_status` back.
+- **Run history + notify**: each fire also inserts a `ScheduleRun` document (`onespace_scheduler_schedule_runs`, TTL-bounded by `run_history_ttl_days`) capturing status + HTTP code + truncated response body; read via `GET /schedules/{id}/runs`. If the schedule has a `notify_url`, `src/scheduling/actions.py:notify` POSTs the result there — best-effort (SSRF-guarded, no retry, failures only logged, never fail the run).
 
 ### Response envelope (every endpoint)
 
-All responses use one shape via `app/schemas/response.py:ApiResponse[T]`:
+All responses use one shape via `src/api/models/response_schemas.py:ApiResponse[T]`:
 
 ```json
 { "success": true, "message": "...", "data": <payload or null> }
