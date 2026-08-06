@@ -17,6 +17,7 @@ from src.core.config import Settings, get_settings
 from src.core.db.db_connect import close_mongo_connection, connect_to_mongo
 from src.core.exceptions import register_exception_handlers
 from src.core.logging.logger import configure_logging, get_logger
+from src.scheduling.schedule_service import resync_jobs
 from src.scheduling.scheduler import shutdown_scheduler, start_scheduler
 
 logger = get_logger(__name__)
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
     await connect_to_mongo(settings)
     start_scheduler(settings)
+    await resync_jobs()  # re-arm active schedules the jobstore could not restore
     logger.info("%s startup complete", settings.app_name)
     try:
         yield

@@ -9,7 +9,7 @@ Each Schedule document maps 1:1 to an APScheduler job whose id equals the
 document id. Mutations keep the two in sync.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -23,8 +23,11 @@ from bson.errors import InvalidId
 from src.api.models.schedule import ScheduleCreate, ScheduleUpdate
 from src.core.db.db_schema import Schedule, ScheduleRun, ScheduleStatus, TriggerType
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
+from src.core.logging.logger import get_logger
 from src.scheduling.jobs import execute_schedule
 from src.scheduling.scheduler import get_scheduler
+
+logger = get_logger(__name__)
 
 _TRIGGER_BUILDERS = {
     TriggerType.DATE: DateTrigger,
@@ -86,6 +89,42 @@ def _register_job(schedule: Schedule) -> None:
         kwargs={"schedule_id": str(schedule.id)},
         replace_existing=True,
     )
+
+
+async def resync_jobs() -> dict[str, int]:
+    """Re-arm active schedules that have no APScheduler job. Idempotent.
+
+    The jobstore deletes any job it cannot restore — a stored job holds a
+    textual reference to its function, so moving the module (app/ -> src/)
+    orphaned every existing job. The Schedule documents are the source of
+    truth, so rebuild the missing jobs from them on startup.
+    """
+    scheduler = get_scheduler()
+    now = datetime.now(UTC)
+    restored = skipped = failed = 0
+
+    for schedule in await Schedule.find(Schedule.status == ScheduleStatus.ACTIVE).to_list():
+        try:
+            if scheduler.get_job(str(schedule.id)) is not None:
+                skipped += 1
+            elif _has_future_fire(schedule, now):
+                _register_job(schedule)
+                restored += 1
+            else:
+                # Nothing left to fire (one-shot already past, or end_date
+                # expired) — re-arming it would fire it again as a misfire.
+                skipped += 1
+        except Exception:
+            failed += 1
+            logger.exception("Could not restore schedule %s", schedule.id)
+
+    logger.info("Scheduler resync: restored=%d skipped=%d failed=%d", restored, skipped, failed)
+    return {"restored": restored, "skipped": skipped, "failed": failed}
+
+
+def _has_future_fire(schedule: Schedule, now: datetime) -> bool:
+    next_fire = _trigger_for(schedule).get_next_fire_time(None, now)
+    return next_fire is not None and next_fire >= now
 
 
 def _safe_remove_job(schedule_id: str) -> None:

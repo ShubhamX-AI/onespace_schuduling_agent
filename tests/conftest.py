@@ -111,9 +111,13 @@ async def client(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> AsyncIt
     def _noop_scheduler(_: Settings):
         return None
 
+    async def _noop_resync() -> dict[str, int]:
+        return {"restored": 0, "skipped": 0, "failed": 0}
+
     monkeypatch.setattr("server.connect_to_mongo", _noop_mongo)
     monkeypatch.setattr("server.close_mongo_connection", _noop_close)
     monkeypatch.setattr("server.start_scheduler", _noop_scheduler)
+    monkeypatch.setattr("server.resync_jobs", _noop_resync)
     monkeypatch.setattr("server.shutdown_scheduler", lambda: None)
 
     app = create_app(settings)
