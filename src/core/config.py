@@ -19,6 +19,9 @@ class Settings(BaseSettings):
 
     # App
     app_name: str = "OneSpace Scheduling Service"
+    # Single source of the service version: reported by /health and by the
+    # OpenAPI metadata. Keep in step with the version in pyproject.toml.
+    app_version: str = "0.1.0"
     app_env: str = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
@@ -47,6 +50,11 @@ class Settings(BaseSettings):
     notify_timeout_seconds: float = 10.0
     # Days to keep run-history records (TTL index). 0 = keep forever.
     run_history_ttl_days: int = 0
+
+    # Health
+    # Per-probe timeout for GET /health. Deliberately far below the timeouts
+    # sized for real calls — a probe that hangs is a probe nobody polls.
+    health_probe_timeout_s: float = 3.0
 
     # Built MkDocs site, served at /documentation. Run `mkdocs build` to create
     # it; if the directory is absent the route is simply not mounted.

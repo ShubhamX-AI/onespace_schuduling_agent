@@ -49,13 +49,14 @@ def _reset_db():
     db.database = None
 
 
-async def test_ping_false_when_not_connected() -> None:
-    assert await db_connect.ping() is False
+async def test_ping_db_raises_when_not_connected() -> None:
+    with pytest.raises(RuntimeError):
+        await db_connect.ping_db()
 
 
-async def test_ping_true_when_connected() -> None:
+async def test_ping_db_round_trips_when_connected() -> None:
     db.client = _FakeClient("mongodb://localhost:27017")
-    assert await db_connect.ping() is True
+    assert await db_connect.ping_db() is None
 
 
 async def test_connect_to_mongo_sets_db(monkeypatch: pytest.MonkeyPatch) -> None:

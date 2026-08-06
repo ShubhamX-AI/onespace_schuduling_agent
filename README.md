@@ -91,6 +91,7 @@ never via scattered `os.getenv` calls.
 | Variable | Default | Note |
 | -------- | ------- | ---- |
 | `APP_NAME` | `OneSpace Scheduling Service` | App title shown in OpenAPI docs |
+| `APP_VERSION` | `0.1.0` | Service version, reported by `GET /health` and OpenAPI |
 | `APP_ENV` | `development` | `development` / `production` |
 | `DEBUG` | `false` | FastAPI debug mode |
 | `LOG_LEVEL` | `INFO` | Log level |
@@ -106,6 +107,7 @@ never via scattered `os.getenv` calls.
 | `WEBHOOK_RESPONSE_MAX_CHARS` | `2048` | Max chars of a webhook response body kept in each run record |
 | `NOTIFY_TIMEOUT_SECONDS` | `10` | Timeout for the best-effort notify callback |
 | `RUN_HISTORY_TTL_DAYS` | `0` | Days to keep run history (TTL); `0` = keep forever |
+| `HEALTH_PROBE_TIMEOUT_S` | `3` | Per-probe timeout for `GET /health` |
 | `DOCS_SITE_DIR` | `site` | Built MkDocs site, served at `/documentation` (route not mounted if absent) |
 
 ## Endpoints
@@ -119,7 +121,7 @@ production. See [docs/concepts/schedules.md](docs/concepts/schedules.md#ownershi
 
 | Method | Path                            | Description                       |
 | ------ | ------------------------------- | --------------------------------- |
-| GET    | `/api/v1/health`                | Liveness + db ping                |
+| GET    | `/health`                       | Deep health probe — no header, **always HTTP 200**, read `data.status` |
 | POST   | `/api/v1/schedules`             | Create schedule                   |
 | POST   | `/api/v1/schedules/validate`    | Validate a trigger without saving |
 | GET    | `/api/v1/schedules`             | List schedules                    |
@@ -227,6 +229,7 @@ server_run.py               # production runner: execs Granian with server:app
 src/
 ├── api/                    # HTTP surface — thin routes, no business logic
 │   ├── models/             #   Pydantic DTOs — the API contract (response envelope + schedule)
+│   ├── routes/health.py    #   GET /health — deep probe, unprefixed, always 200
 │   └── routes/v1/          #   endpoints + shared deps (_common.py: X-Owner-Id)
 ├── core/                   # cross-cutting plumbing, depends on nothing domain-specific
 │   ├── config.py           #   Settings (pydantic-settings, env-driven) + get_settings()

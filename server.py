@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from src.api.routes import health
 from src.api.routes.v1.router import api_router
 from src.core.config import Settings, get_settings
 from src.core.db.db_connect import close_mongo_connection, connect_to_mongo
@@ -41,6 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
+        version=settings.app_version,
         debug=settings.debug,
         lifespan=lifespan,
     )
@@ -48,6 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
+    app.include_router(health.router)  # unprefixed: a probe, not part of the API
     _mount_documentation(app, settings)
     return app
 

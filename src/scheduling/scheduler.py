@@ -46,6 +46,13 @@ def get_scheduler() -> AsyncIOScheduler:
     return _scheduler
 
 
+async def ping_scheduler() -> None:
+    """Raise unless the shared scheduler is started and running. Used by the
+    /health probe — a stopped scheduler means nothing will ever fire."""
+    if _scheduler is None or not _scheduler.running:
+        raise RuntimeError("scheduler not running")
+
+
 def shutdown_scheduler(wait: bool = True) -> None:
     """Stop the scheduler. By default waits for in-flight jobs to finish
     (graceful shutdown) so a deploy/restart does not drop running work."""

@@ -49,12 +49,9 @@ async def close_mongo_connection() -> None:
         logger.info("MongoDB connection closed")
 
 
-async def ping() -> bool:
-    """Return True if the database responds to a ping, False on any error."""
+async def ping_db() -> None:
+    """Round-trip MongoDB. Raises if the client was never built or the server
+    does not answer. Used by the /health probe, which turns the error into text."""
     if db.client is None:
-        return False
-    try:
-        await db.client.admin.command("ping")
-    except Exception:
-        return False
-    return True
+        raise RuntimeError("MongoDB client not initialised")
+    await db.client.admin.command("ping")

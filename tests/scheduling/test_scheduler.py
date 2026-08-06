@@ -9,7 +9,12 @@ import pytest
 
 from src.core.config import Settings
 from src.scheduling import scheduler
-from src.scheduling.scheduler import get_scheduler, shutdown_scheduler, start_scheduler
+from src.scheduling.scheduler import (
+    get_scheduler,
+    ping_scheduler,
+    shutdown_scheduler,
+    start_scheduler,
+)
 
 
 class _FakeJobStore:
@@ -22,6 +27,7 @@ class _FakeScheduler:
         self.timezone = timezone
         self.jobstores: dict[str, object] = {}
         self.started = False
+        self.running = False
         self.stopped = False
         self.shutdown_wait = True
 
@@ -30,8 +36,10 @@ class _FakeScheduler:
 
     def start(self) -> None:
         self.started = True
+        self.running = True
 
     def shutdown(self, wait=True) -> None:
+        self.running = False
         self.stopped = True
         self.shutdown_wait = wait
 
@@ -81,3 +89,16 @@ def test_shutdown_stops_and_clears(monkeypatch: pytest.MonkeyPatch) -> None:
     assert started.shutdown_wait is False
     with pytest.raises(RuntimeError):
         get_scheduler()
+
+
+async def test_ping_scheduler_raises_when_not_started() -> None:
+    with pytest.raises(RuntimeError, match="scheduler not running"):
+        await ping_scheduler()
+
+
+async def test_ping_scheduler_passes_when_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(scheduler, "MongoDBJobStore", _FakeJobStore)
+    monkeypatch.setattr(scheduler, "AsyncIOScheduler", _FakeScheduler)
+    start_scheduler(Settings())
+
+    assert await ping_scheduler() is None

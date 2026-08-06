@@ -7,8 +7,7 @@
 
 from fastapi import APIRouter
 
-from src.api.routes.v1 import health, schedules
+from src.api.routes.v1 import schedules
 
 api_router = APIRouter()
-api_router.include_router(health.router, tags=["health"])
 api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])

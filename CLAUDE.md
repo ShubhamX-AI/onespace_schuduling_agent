@@ -36,6 +36,7 @@ server_run.py        # production runner: execs Granian with server:app
 src/
 ├── api/             # HTTP surface — thin routes, no business logic
 │   ├── models/      #   Pydantic DTOs — the API contract (response envelope + schedule)
+│   ├── routes/health.py  # GET /health — deep probe, unprefixed, always 200
 │   └── routes/v1/   #   endpoints + shared deps (_common.py: X-Owner-Id)
 ├── core/            # cross-cutting plumbing, depends on nothing domain-specific
 │   ├── config.py    #   Settings (pydantic-settings, env-driven) + get_settings()

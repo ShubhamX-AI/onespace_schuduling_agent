@@ -12,9 +12,8 @@ def _route_paths() -> list[str]:
     return [route.path for route in api_router.routes]
 
 
-def test_health_and_schedules_mounted() -> None:
+def test_schedule_endpoints_mounted() -> None:
     paths = _route_paths()
-    assert "/health" in paths
     assert "/schedules" in paths
     assert "/schedules/{schedule_id}" in paths
     assert "/schedules/{schedule_id}/runs" in paths
