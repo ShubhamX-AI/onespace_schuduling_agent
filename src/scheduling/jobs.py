@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from beanie import PydanticObjectId
 from bson.errors import InvalidId
 
-from src.core.db.db_schema import RunStatus, Schedule, ScheduleRun
+from src.core.db.db_schema import RunStatus, Schedule, ScheduleRun, ScheduleStatus
 from src.core.logging.logger import get_logger
 from src.scheduling.actions import WebhookError, notify, run_action
 
@@ -67,8 +67,37 @@ async def execute_schedule(schedule_id: str) -> None:
     run.notified = await notify(schedule, run)
     await run.insert()
 
+    # Update consecutive error counter
+    if status == RunStatus.SUCCESS:
+        schedule.consecutive_errors = 0
+    else:
+        schedule.consecutive_errors += 1
+
     schedule.last_run_at = run.finished_at
     schedule.last_status = status
     schedule.last_error = error
     schedule.last_http_status = http_status
+
+    # Check if we need to pause the schedule due to too many consecutive errors
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    if schedule.consecutive_errors >= settings.consecutive_error_threshold:
+        schedule.status = ScheduleStatus.PAUSED
+        logger.info(
+            "Schedule %s paused after %d consecutive errors (threshold: %d)",
+            schedule_id,
+            schedule.consecutive_errors,
+            settings.consecutive_error_threshold,
+        )
+        # Remove the job from the scheduler
+        from src.scheduling.scheduler import get_scheduler
+
+        try:
+            scheduler = get_scheduler()
+            scheduler.remove_job(schedule_id)
+        except Exception:
+            # Job might not exist in scheduler, ignore
+            pass
+
     await schedule.save()

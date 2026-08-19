@@ -149,6 +149,7 @@ class ScheduleRead(BaseModel):
     last_status: RunStatus | None
     last_error: str | None
     last_http_status: int | None
+    consecutive_errors: int
     created_at: datetime
     updated_at: datetime
 
@@ -173,6 +174,7 @@ class ScheduleRead(BaseModel):
             last_status=doc.last_status,
             last_error=doc.last_error,
             last_http_status=doc.last_http_status,
+            consecutive_errors=doc.consecutive_errors,
             created_at=doc.created_at,
             updated_at=doc.updated_at,
         )

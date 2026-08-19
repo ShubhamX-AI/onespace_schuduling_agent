@@ -116,6 +116,8 @@ class Schedule(Document):
     last_status: RunStatus | None = None
     last_error: str | None = None
     last_http_status: int | None = None
+    # Track consecutive errors to auto-pause problematic schedules
+    consecutive_errors: int = 0
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 

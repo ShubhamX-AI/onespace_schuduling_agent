@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     notify_timeout_seconds: float = 10.0
     # Days to keep run-history records (TTL index). 0 = keep forever.
     run_history_ttl_days: int = 0
+    # Consecutive error threshold - pause schedules after this many consecutive errors
+    consecutive_error_threshold: int = 50
 
     # Health
     # Per-probe timeout for GET /health. Deliberately far below the timeouts

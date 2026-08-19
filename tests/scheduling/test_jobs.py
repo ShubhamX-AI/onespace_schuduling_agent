@@ -124,6 +124,71 @@ async def test_unexpected_exception_never_crashes_scheduler(
     assert run.error == "kaboom"
 
 
+async def test_consecutive_errors_are_tracked_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schedule = build_schedule(consecutive_errors=2)
+    captured: dict = {}
+    _stub_schedule_get(monkeypatch, schedule)
+
+    def _raise(_s):
+        raise WebhookError("boom", http_status=500, body="oops")
+
+    monkeypatch.setattr(jobs, "run_action", _raise)
+    monkeypatch.setattr(jobs, "notify", _notify_true)
+    _capture_insert(monkeypatch, captured)
+    _stub_save(monkeypatch, captured)
+
+    await jobs.execute_schedule(str(schedule.id))
+
+    assert schedule.consecutive_errors == 3  # incremented from 2 to 3
+
+
+async def test_consecutive_errors_are_reset_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schedule = build_schedule(consecutive_errors=5)
+    captured: dict = {}
+    _stub_schedule_get(monkeypatch, schedule)
+    monkeypatch.setattr(jobs, "run_action", lambda s: _result(200, "ok"))
+    monkeypatch.setattr(jobs, "notify", _notify_true)
+    _capture_insert(monkeypatch, captured)
+    _stub_save(monkeypatch, captured)
+
+    await jobs.execute_schedule(str(schedule.id))
+
+    assert schedule.consecutive_errors == 0  # reset to 0 on success
+
+
+async def test_schedule_is_paused_after_consecutive_error_threshold_reached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schedule = build_schedule(consecutive_errors=49)  # Will reach 50 after this error
+    captured: dict = {}
+    _stub_schedule_get(monkeypatch, schedule)
+
+    def _raise(_s):
+        raise WebhookError("boom", http_status=500, body="oops")
+
+    monkeypatch.setattr(jobs, "run_action", _raise)
+    monkeypatch.setattr(jobs, "notify", _notify_true)
+    _capture_insert(monkeypatch, captured)
+
+    saved_schedule = None
+
+    async def _save(self) -> None:
+        nonlocal saved_schedule
+        saved_schedule = self
+        captured["saved"] = self
+
+    monkeypatch.setattr(Schedule, "save", _save)
+
+    await jobs.execute_schedule(str(schedule.id))
+
+    assert saved_schedule.consecutive_errors == 50
+    assert saved_schedule.status == "paused"
+
+
 async def _notify_true(_s, _r) -> bool:
     return True
 

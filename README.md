@@ -107,6 +107,7 @@ never via scattered `os.getenv` calls.
 | `WEBHOOK_RESPONSE_MAX_CHARS` | `2048` | Max chars of a webhook response body kept in each run record |
 | `NOTIFY_TIMEOUT_SECONDS` | `10` | Timeout for the best-effort notify callback |
 | `RUN_HISTORY_TTL_DAYS` | `0` | Days to keep run history (TTL); `0` = keep forever |
+| `CONSECUTIVE_ERROR_THRESHOLD` | `50` | Pause schedules after this many consecutive errors |
 | `HEALTH_PROBE_TIMEOUT_S` | `3` | Per-probe timeout for `GET /health` |
 | `DOCS_SITE_DIR` | `site` | Built MkDocs site, served at `/documentation` (route not mounted if absent) |
 

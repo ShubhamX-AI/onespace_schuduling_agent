@@ -43,6 +43,12 @@ Two different things — don't confuse them:
   `last_status: "error"` with `last_error`. Read it via
   `GET /api/v1/schedules/{id}`.
 
+Schedules that accumulate too many consecutive errors (default threshold: 50) are
+automatically **paused** to prevent continuous failed requests. The consecutive
+error count is tracked in the `consecutive_errors` field and can be monitored.
+When the threshold is reached, the schedule status changes to `paused` and the
+scheduler job is removed.
+
 See [Actions → failure handling](concepts/actions.md#failure-handling-retries-with-backoff)
 for retry behavior, and the [SSRF guard](concepts/actions.md#ssrf-protection)
 for why a target host might be blocked.

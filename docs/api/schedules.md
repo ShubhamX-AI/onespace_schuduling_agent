@@ -57,6 +57,7 @@ The object you get back in `data` from every schedule endpoint:
   "last_status": null,
   "last_error": null,
   "last_http_status": null,
+  "consecutive_errors": 0,
   "created_at": "2026-06-11T15:04:05Z",
   "updated_at": "2026-06-11T15:04:05Z"
 }

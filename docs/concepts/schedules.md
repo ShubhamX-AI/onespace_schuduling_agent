@@ -53,6 +53,7 @@ These appear in every schedule response and are managed by the service:
 | `last_status` | Outcome of the last run: `success` or `error`. |
 | `last_error` | Error message from the last failed run, else `null`. |
 | `last_http_status` | HTTP status the webhook returned on the last run, else `null`. |
+| `consecutive_errors` | Number of consecutive errors for this schedule. Automatically paused after reaching the threshold (default 50). |
 | `status` | `active` (armed) or `paused` (kept, not firing). |
 | `created_at` / `updated_at` | Timestamps (UTC). |
 
