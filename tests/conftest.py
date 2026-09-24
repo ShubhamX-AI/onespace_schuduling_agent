@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from httpx import ASGITransport, AsyncClient
 
 from server import create_app
@@ -93,6 +94,28 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(socket.socket, "connect", _block_connect)
     monkeypatch.setattr(socket.socket, "connect_ex", _block_connect_ex)
     monkeypatch.setattr(socket, "create_connection", _block_create_connection)
+
+
+@pytest.fixture(autouse=True)
+def _reset_settings() -> None:
+    """``create_app`` and tests install Settings globally; drop them after each test."""
+    from src.core import config
+
+    yield
+    config.configure(None)
+
+
+@pytest.fixture
+async def live_scheduler(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[AsyncIOScheduler]:
+    """A real AsyncIOScheduler on the default in-memory jobstore, installed as the
+    shared scheduler. Started paused, so jobs are stored but never fire."""
+    from src.scheduling import scheduler as scheduler_module
+
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    scheduler.start(paused=True)
+    monkeypatch.setattr(scheduler_module, "_scheduler", scheduler)
+    yield scheduler
+    scheduler.shutdown(wait=False)
 
 
 @pytest.fixture

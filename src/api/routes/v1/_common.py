@@ -5,15 +5,9 @@
 # Commercial licensing: licensing@intglobal.com
 """Shared API dependencies."""
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Header
 
 from src.core.exceptions import AuthError
-from src.scheduling.scheduler import get_scheduler
-
-
-def scheduler_dep() -> AsyncIOScheduler:
-    return get_scheduler()
 
 
 def current_owner(x_owner_id: str | None = Header(default=None)) -> str:

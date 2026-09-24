@@ -8,6 +8,7 @@
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from pymongo.errors import DuplicateKeyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.testclient import TestClient
 
@@ -52,6 +53,10 @@ async def test_handlers_emit_envelope() -> None:
     async def _http_error():
         raise StarletteHTTPException(status_code=418, detail="teapot")
 
+    @app.get("/duplicate")
+    async def _duplicate():
+        raise DuplicateKeyError("E11000 duplicate key error")
+
     register_exception_handlers(app)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get("/app-error")
@@ -64,6 +69,14 @@ async def test_handlers_emit_envelope() -> None:
         assert body["success"] is False
         assert body["data"] is None
         assert "teapot" in body["message"]
+
+        response = await ac.get("/duplicate")  # name race past the service check
+        assert response.status_code == 409
+        assert response.json() == {
+            "success": False,
+            "message": "Schedule name already exists",
+            "data": None,
+        }
 
 
 def test_unhandled_error_returns_500_envelope() -> None:

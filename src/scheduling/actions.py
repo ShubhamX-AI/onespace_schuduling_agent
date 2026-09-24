@@ -28,11 +28,13 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class WebhookResult:
-    """Outcome of a webhook call: the HTTP status and a truncated response body."""
+class ActionResult:
+    """Outcome of a fired action: HTTP status, truncated response body, and the
+    error message when it failed (``None`` on success)."""
 
     http_status: int | None = None
     body: str | None = None
+    error: str | None = None
 
 
 class WebhookError(Exception):
@@ -44,16 +46,26 @@ class WebhookError(Exception):
         self.body = body
 
 
-async def run_action(schedule: Schedule) -> WebhookResult:
-    """Perform the schedule's action. No action set => log only (legacy)."""
+async def run_action(schedule: Schedule) -> ActionResult:
+    """Perform the schedule's action. Never raises: a failure is ``result.error``.
+
+    No action set => log only (legacy).
+    """
     action = schedule.action
     if action is None:
         logger.info("Schedule %s fired with no action; payload=%s", schedule.id, schedule.payload)
-        return WebhookResult()
-    return await _call_webhook(action, schedule.payload)
+        return ActionResult()
+    try:
+        return await _call_webhook(action, schedule.payload)
+    except WebhookError as exc:
+        logger.exception("Schedule %s failed", schedule.id)
+        return ActionResult(exc.http_status, exc.body, str(exc))
+    except Exception as exc:  # never crash the scheduler
+        logger.exception("Schedule %s failed", schedule.id)
+        return ActionResult(error=str(exc))
 
 
-async def _call_webhook(action: WebhookAction, body: dict[str, Any]) -> WebhookResult:
+async def _call_webhook(action: WebhookAction, body: dict[str, Any]) -> ActionResult:
     """Send the HTTP request, retrying with backoff. Raises on final failure."""
     url = str(action.url)
     await _assert_safe_url(url)
@@ -66,7 +78,7 @@ async def _call_webhook(action: WebhookAction, body: dict[str, Any]) -> WebhookR
                     action.method, url, headers=action.headers, json=body
                 )
                 response.raise_for_status()
-                return WebhookResult(response.status_code, _truncate(response.text))
+                return ActionResult(response.status_code, _truncate(response.text))
             except httpx.HTTPError as exc:
                 if attempt + 1 == attempts:
                     http_status, resp_body = _response_of(exc)

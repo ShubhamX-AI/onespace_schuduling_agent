@@ -5,8 +5,6 @@
 # Commercial licensing: licensing@intglobal.com
 """Application settings, loaded from environment / .env."""
 
-from functools import lru_cache
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,7 +65,22 @@ class Settings(BaseSettings):
         return self.app_env.lower() == "production"
 
 
-@lru_cache
+_settings: Settings | None = None
+
+
+def configure(settings: Settings | None) -> None:
+    """Install the Settings every ``get_settings()`` caller sees.
+
+    ``create_app`` calls it, so settings passed to the app reach domain code too.
+    ``None`` resets: the next ``get_settings()`` reads the environment again.
+    """
+    global _settings
+    _settings = settings
+
+
 def get_settings() -> Settings:
-    """Return a cached Settings instance."""
-    return Settings()
+    """Return the configured Settings, built from the environment on first use."""
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings

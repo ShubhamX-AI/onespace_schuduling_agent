@@ -13,7 +13,7 @@ from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 
 from src.core.config import Settings
-from src.core.db.db_schema import DOCUMENT_MODELS
+from src.core.db.db_schema import DOCUMENT_MODELS, ScheduleRun, run_indexes
 from src.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,8 +34,11 @@ async def connect_to_mongo(settings: Settings) -> None:
     from beanie import init_beanie
 
     logger.info("Connecting to MongoDB ....")
-    db.client = AsyncMongoClient(settings.mongodb_uri)
+    # tz_aware: datetimes load as aware UTC, comparable with the ones the app builds.
+    db.client = AsyncMongoClient(settings.mongodb_uri, tz_aware=True)
     db.database = db.client[settings.mongodb_db]
+    # Beanie reads Settings.indexes inside init_beanie, so this takes effect.
+    ScheduleRun.Settings.indexes = run_indexes(settings.run_history_ttl_days)
     await init_beanie(database=db.database, document_models=DOCUMENT_MODELS)
     logger.info("MongoDB connected, Beanie initialized (db=%s)", settings.mongodb_db)
 

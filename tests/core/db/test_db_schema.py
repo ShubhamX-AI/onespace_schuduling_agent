@@ -68,13 +68,6 @@ def test_schedule_defaults() -> None:
     assert schedule.status == ScheduleStatus.ACTIVE
 
 
-def test_schedule_touch_updates_updated_at() -> None:
-    schedule = Schedule(name="x", trigger_type=TriggerType.INTERVAL)
-    before = schedule.updated_at
-    schedule.touch()
-    assert schedule.updated_at >= before
-
-
 def test_schedule_collection_and_indexes() -> None:
     assert Schedule.Settings.name == "onespace_scheduler_schedules"
     assert ScheduleRun.Settings.name == "onespace_scheduler_schedule_runs"
@@ -86,21 +79,14 @@ def test_schedule_collection_and_indexes() -> None:
     assert unique_owner_name.document["key"] == {"owner_id": 1, "name": 1}
 
 
-def test_run_indexes_without_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(db_schema, "get_settings", lambda: _Settings(0))
-    indexes = db_schema._run_indexes()
+def test_run_indexes_without_ttl() -> None:
+    indexes = db_schema.run_indexes(0)
     assert len(indexes) == 1
     assert not any(i.document.get("expireAfterSeconds") for i in indexes)
 
 
-def test_run_indexes_with_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(db_schema, "get_settings", lambda: _Settings(7))
-    indexes = db_schema._run_indexes()
+def test_run_indexes_with_ttl() -> None:
+    indexes = db_schema.run_indexes(7)
     ttl = next(i for i in indexes if i.document.get("expireAfterSeconds"))
     assert ttl.document["expireAfterSeconds"] == 7 * 86400
     assert ttl.document["key"] == {"finished_at": 1}
-
-
-class _Settings:
-    def __init__(self, run_history_ttl_days: int) -> None:
-        self.run_history_ttl_days = run_history_ttl_days

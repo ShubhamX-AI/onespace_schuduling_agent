@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pymongo.errors import DuplicateKeyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.core.logging.logger import get_logger
@@ -75,6 +76,13 @@ def register_exception_handlers(app: FastAPI) -> None:
             for err in exc.errors()
         ]
         return _envelope(status.HTTP_422_UNPROCESSABLE_CONTENT, "Validation failed", errors)
+
+    # The service checks name uniqueness first; this catches the race where two
+    # requests pass that check and the unique (owner_id, name) index rejects one.
+    # ponytail: assumes that is the only unique index; name the index if more appear.
+    @app.exception_handler(DuplicateKeyError)
+    async def _handle_duplicate(_: Request, exc: DuplicateKeyError) -> JSONResponse:
+        return _envelope(status.HTTP_409_CONFLICT, "Schedule name already exists")
 
     @app.exception_handler(StarletteHTTPException)
     async def _handle_http(_: Request, exc: StarletteHTTPException) -> JSONResponse:

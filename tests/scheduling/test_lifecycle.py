@@ -3,7 +3,7 @@
 # See LICENSE file in the project root for full licence terms.
 # Additional Use Grant: internal deployment and modification only.
 # Commercial licensing: licensing@intglobal.com
-"""Tests for the schedule lifecycle: status transitions, run recording, resync.
+"""Tests for the schedule lifecycle: status transitions, auto-pause, resync.
 
 A real scheduler on an in-memory jobstore (``live_scheduler``) shows which jobs
 are armed. Beanie writes are faked and recorded, so tests assert the shape of
@@ -15,11 +15,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.core.db.db_schema import RunStatus, Schedule, ScheduleStatus, TriggerType
+from src.core.db.db_schema import Schedule, ScheduleStatus, TriggerType
 from src.core.exceptions import ValidationError
 from src.scheduling import lifecycle
 from src.scheduling.lifecycle import resync_jobs
-from tests.factories import build_schedule, build_schedule_run
+from tests.factories import build_schedule
 
 _EXECUTOR = "src.scheduling.jobs:execute_schedule"
 
@@ -63,7 +63,8 @@ def updates(monkeypatch: pytest.MonkeyPatch) -> _FakeUpdates:
 
 
 def _arm(scheduler, schedule: Schedule) -> None:
-    scheduler.add_job(_EXECUTOR, "interval", seconds=60, id=str(schedule.id))
+    job_id = str(schedule.id)
+    scheduler.add_job(_EXECUTOR, "interval", seconds=60, id=job_id, kwargs={"schedule_id": job_id})
 
 
 # --- apply: pause / resume / edit -------------------------------------------
@@ -138,48 +139,99 @@ async def test_failed_arm_reverts_the_saved_edit(live_scheduler, sets, monkeypat
     assert len(sets) == 2  # the edit, then its revert
 
 
-# --- record_run: run summary + auto-pause ------------------------------------
-
-
-async def test_success_resets_errors_and_writes_only_run_summary(updates) -> None:
-    run = build_schedule_run(status=RunStatus.SUCCESS, http_status=200)
-
-    await lifecycle.record_run(run.schedule_id, run)
-
-    assert updates.updates == [
-        {
-            "$set": {
-                "last_run_at": run.finished_at,
-                "last_status": RunStatus.SUCCESS,
-                "last_error": None,
-                "last_http_status": 200,
-                "consecutive_errors": 0,
-            }
-        }
-    ]
-
-
-async def test_failure_increments_errors_and_disarms_when_paused(live_scheduler, updates) -> None:
+async def test_edit_not_touching_the_trigger_keeps_the_job(live_scheduler, sets) -> None:
+    """Re-arming would restart the interval from now and shift the next fire."""
     schedule = build_schedule()
     _arm(live_scheduler, schedule)
-    run = build_schedule_run(schedule_id=schedule.id, status=RunStatus.ERROR, error="boom")
+    next_fire = live_scheduler.get_job(str(schedule.id)).next_run_time
 
-    await lifecycle.record_run(schedule.id, run)
+    await lifecycle.apply(schedule, {"description": "renamed"})
 
-    summary, pause = updates.updates
-    assert summary["$inc"] == {"consecutive_errors": 1}
-    assert pause["$set"]["status"] == ScheduleStatus.PAUSED
+    job = live_scheduler.get_job(str(schedule.id))
+    assert job.next_run_time == next_fire
+    assert job.trigger.interval == timedelta(seconds=60)  # the job armed above, untouched
+    assert sets[0]["description"] == "renamed"
+
+
+def _past_one_shot(**overrides) -> Schedule:
+    return build_schedule(
+        trigger_type=TriggerType.DATE,
+        trigger_args={"run_date": datetime.now(UTC) - timedelta(days=1)},
+        **overrides,
+    )
+
+
+async def test_resume_of_expired_one_shot_is_rejected(live_scheduler, sets) -> None:
+    schedule = _past_one_shot(status=ScheduleStatus.PAUSED)
+
+    with pytest.raises(ValidationError, match="no future fire"):
+        await lifecycle.apply(schedule, {"status": ScheduleStatus.ACTIVE})
+
+    assert sets == []
+    assert schedule.status == ScheduleStatus.PAUSED
+    assert live_scheduler.get_jobs() == []
+
+
+async def test_create_of_expired_one_shot_is_rejected(live_scheduler, monkeypatch) -> None:
+    inserted: list[Schedule] = []
+
+    async def _insert(self):
+        inserted.append(self)
+
+    monkeypatch.setattr(Schedule, "insert", _insert)
+
+    with pytest.raises(ValidationError, match="no future fire"):
+        await lifecycle.create(_past_one_shot())
+
+    assert inserted == []
+
+
+async def test_create_arms_active_schedule(live_scheduler, monkeypatch) -> None:
+    async def _insert(self):
+        return self
+
+    monkeypatch.setattr(Schedule, "insert", _insert)
+    schedule = build_schedule()
+
+    await lifecycle.create(schedule)
+
+    assert live_scheduler.get_job(str(schedule.id)) is not None
+
+
+async def test_delete_disarms(live_scheduler, monkeypatch) -> None:
+    async def _delete(self):
+        return None
+
+    monkeypatch.setattr(Schedule, "delete", _delete)
+    schedule = build_schedule()
+    _arm(live_scheduler, schedule)
+
+    await lifecycle.delete(schedule)
+    await lifecycle.delete(schedule)  # no job left: still fine
+
+    assert live_scheduler.get_jobs() == []
+
+
+# --- pause_if_failing: auto-pause ---------------------------------------------
+
+
+async def test_auto_pause_disarms_when_the_threshold_matches(live_scheduler, updates) -> None:
+    schedule = build_schedule()
+    _arm(live_scheduler, schedule)
+
+    await lifecycle.pause_if_failing(schedule.id)
+
+    assert updates.updates[0]["$set"]["status"] == ScheduleStatus.PAUSED
     assert live_scheduler.get_job(str(schedule.id)) is None
 
 
-async def test_failure_below_threshold_keeps_job(live_scheduler, updates) -> None:
+async def test_auto_pause_below_threshold_keeps_job(live_scheduler, updates) -> None:
     """No match on the conditional pause (below threshold, or already paused)."""
     updates.modified = 0
     schedule = build_schedule()
     _arm(live_scheduler, schedule)
-    run = build_schedule_run(schedule_id=schedule.id, status=RunStatus.ERROR)
 
-    await lifecycle.record_run(schedule.id, run)
+    await lifecycle.pause_if_failing(schedule.id)
 
     assert live_scheduler.get_job(str(schedule.id)) is not None
 

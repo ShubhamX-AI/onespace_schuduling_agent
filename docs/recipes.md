@@ -127,7 +127,11 @@ curl -X POST http://localhost:3011/api/v1/schedules/665f.../run \
   -H 'X-Owner-Id: team-alpha'
 ```
 
-**B — a true one-off** — create a `date` schedule with a `run_date` of now:
+Returns `202` straight away; the webhook fires in the background. Check the
+outcome with `GET /api/v1/schedules/665f.../runs`.
+
+**B — a true one-off** — create a `date` schedule with a `run_date` a few
+seconds ahead (a `run_date` already in the past returns `422`):
 
 ```bash
 curl -X POST http://localhost:3011/api/v1/schedules \

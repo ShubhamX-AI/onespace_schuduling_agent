@@ -80,6 +80,10 @@ def test_update_absent_fields_stay_none() -> None:
     assert ScheduleUpdate().trigger_args is None
 
 
+def test_update_null_clears_nullable_field() -> None:
+    assert ScheduleUpdate(notify_url=None).model_dump(exclude_unset=True) == {"notify_url": None}
+
+
 def test_name_too_long_rejected() -> None:
     with pytest.raises(ValidationError):
         _create(name="x" * 129)

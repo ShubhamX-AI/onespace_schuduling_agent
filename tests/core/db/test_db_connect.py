@@ -66,7 +66,7 @@ async def test_connect_to_mongo_sets_db(monkeypatch: pytest.MonkeyPatch) -> None
     async def _fake_init(**kwargs) -> None:
         init_calls.append(kwargs)
 
-    monkeypatch.setattr(db_connect, "AsyncMongoClient", lambda uri: fake)
+    monkeypatch.setattr(db_connect, "AsyncMongoClient", lambda uri, **_: fake)
     monkeypatch.setattr("beanie.init_beanie", _fake_init)
 
     await db_connect.connect_to_mongo(Settings(mongodb_uri="mongodb://x:27017", mongodb_db="db_x"))
@@ -76,9 +76,26 @@ async def test_connect_to_mongo_sets_db(monkeypatch: pytest.MonkeyPatch) -> None
     assert init_calls[0]["document_models"] is not None
 
 
+async def test_connect_to_mongo_applies_run_history_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The TTL comes from the settings passed in, not from import-time env."""
+    from src.core.db.db_schema import ScheduleRun, run_indexes
+
+    async def _fake_init(**kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(db_connect, "AsyncMongoClient", lambda uri, **_: _FakeClient(uri))
+    monkeypatch.setattr("beanie.init_beanie", _fake_init)
+    monkeypatch.setattr(ScheduleRun.Settings, "indexes", run_indexes(0))
+
+    await db_connect.connect_to_mongo(Settings(run_history_ttl_days=3))
+
+    ttl = [i for i in ScheduleRun.Settings.indexes if i.document.get("expireAfterSeconds")]
+    assert ttl[0].document["expireAfterSeconds"] == 3 * 86400
+
+
 async def test_close_mongo_connection(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeClient("mongodb://x:27017")
-    monkeypatch.setattr(db_connect, "AsyncMongoClient", lambda uri: fake)
+    monkeypatch.setattr(db_connect, "AsyncMongoClient", lambda uri, **_: fake)
     init_calls = []
 
     async def _fake_init(**kwargs) -> None:

@@ -12,7 +12,7 @@ at the intended local time regardless of the server's clock.
 | You want… | `trigger_type` | `trigger_args` |
 | --------- | -------------- | -------------- |
 | Fire once at a specific time | `date` | `{"run_date": "2026-06-12T10:00:00"}` |
-| Fire roughly now / one-off | `date` | `{"run_date": "<now-ish ISO>"}` (or use [run now](../api/schedules.md#run-now)) |
+| Fire roughly now / one-off | `date` | `{"run_date": "<a few seconds ahead ISO>"}` (or use [run now](../api/schedules.md#run-now)) |
 | Tomorrow at 10:00 | `date` | `{"run_date": "2026-06-12T10:00:00"}` |
 | Every N seconds/minutes/hours/days | `interval` | `{"hours": 1}` / `{"seconds": 30}` |
 | Every day at a fixed time | `cron` | `{"hour": 9, "minute": 0}` |
@@ -20,7 +20,9 @@ at the intended local time regardless of the server's clock.
 
 ## `date` — one-shot
 
-Fires exactly once, then the schedule stops firing.
+Fires exactly once, then the schedule stops firing. `run_date` must be in the
+future: a past one returns `422` (`Schedule has no future fire`) on create or
+resume. A `run_date` without a UTC offset is read in the schedule's `timezone`.
 
 ```json
 { "trigger_type": "date", "trigger_args": { "run_date": "2026-06-12T10:00:00" } }
@@ -72,7 +74,9 @@ Bound a repeating schedule to a date range:
 }
 ```
 
-The schedule only fires between `start_date` and `end_date`.
+The schedule only fires between `start_date` and `end_date`. A date without a
+UTC offset is read in the schedule's `timezone`. An `end_date` already in the
+past returns `422`, since the schedule could never fire.
 
 ## Validate before saving
 

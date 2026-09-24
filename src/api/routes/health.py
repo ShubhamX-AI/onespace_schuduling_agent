@@ -17,9 +17,10 @@ import asyncio
 import time
 from collections.abc import Coroutine
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
 from src.api.models.response_schemas import ApiResponse
+from src.core.config import get_settings
 from src.core.db.db_connect import ping_db
 from src.core.logging.logger import get_logger
 from src.scheduling.scheduler import ping_scheduler
@@ -53,8 +54,9 @@ async def _timed(coro: Coroutine, timeout_s: float) -> dict:
 
 
 @router.get("/health", tags=["health"], response_model=ApiResponse[dict])
-async def health(request: Request) -> ApiResponse[dict]:
-    timeout_s = request.app.state.settings.health_probe_timeout_s
+async def health() -> ApiResponse[dict]:
+    settings = get_settings()
+    timeout_s = settings.health_probe_timeout_s
     probes = {"mongodb": ping_db(), "scheduler": ping_scheduler()}
     results = await asyncio.gather(*(_timed(c, timeout_s) for c in probes.values()))
     checks = dict(zip(probes, results, strict=True))
@@ -68,7 +70,7 @@ async def health(request: Request) -> ApiResponse[dict]:
         message=status,
         data={
             "status": status,
-            "version": request.app.state.settings.app_version,
+            "version": settings.app_version,
             "uptime_s": round(time.monotonic() - _STARTED, 1),
             "checks": checks,
         },

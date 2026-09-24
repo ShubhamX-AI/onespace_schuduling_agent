@@ -80,10 +80,15 @@ with the offending field(s) in `data` (see [Errors](../errors.md)):
 - **`timezone`** must be a resolvable IANA name (e.g. `America/New_York`).
 - **`trigger_args`** must not contain the reserved keys `timezone`,
   `start_date`, or `end_date` — those are set as top-level fields.
-- **`start_date`** must be before **`end_date`** when both are given.
+- **`start_date`** must be before **`end_date`** when both are given. A date
+  without a UTC offset is read in the schedule's `timezone`.
+- An **active** schedule must fire at least once more: a `date` trigger whose
+  `run_date` has passed, or a window whose `end_date` has passed, returns `422`
+  (`Schedule has no future fire`) on create, resume, or a trigger edit.
 - **`action.headers`** may not contain control characters (`\r`, `\n`, null) and
   are capped (≤ 50 headers, ≤ 1024 chars each).
 - A `PATCH` with no fields is rejected.
+- On `PATCH`, `null` clears only `description`, `start_date`, `end_date` and `notify_url`. Omit any other field to leave it unchanged; sending it as `null` returns `422`.
 
 ---
 
@@ -115,7 +120,8 @@ fire (see [notifications](../concepts/actions.md#notifications-push)).
 
 **Response** — `message: "Schedule created"`, `data` = the schedule object.
 
-Errors: `409` if `name` already exists; `422` for invalid body or bad trigger args.
+Errors: `409` if `name` already exists; `422` for invalid body, bad trigger args, or a
+trigger that never fires again (e.g. a `date` trigger in the past).
 
 ---
 
@@ -123,7 +129,10 @@ Errors: `409` if `name` already exists; `422` for invalid body or bad trigger ar
 
 `POST /api/v1/schedules/validate` → **200**
 
-Check a trigger spec (including timezone) **without** persisting anything.
+Check a trigger spec (including timezone and the optional `start_date` /
+`end_date` window) **without** persisting anything. Same rules as create, except
+the "must fire again" check: a `run_date` in the past is reported valid here but
+rejected by create.
 
 **Request body:**
 
@@ -205,8 +214,11 @@ must contain **at least one** field (an empty `{}` returns `422`). Updatable:
 `name` can be changed (rename); renaming to a name already in use returns `409`.
 All [validation rules](#validation-rules) apply to the fields you send.
 
-`message: "Schedule updated"`, `data` = the updated object. The scheduler is
-re-synced atomically — a bad trigger leaves the stored schedule unchanged (`422`).
+`message: "Schedule updated"`, `data` = the updated object. The scheduler job is
+re-armed only when a trigger field (`trigger_type`, `trigger_args`, `timezone`,
+`start_date`, `end_date`) or `status` changes, so editing e.g. `description` or
+`payload` keeps `next_run_at` where it was. A bad trigger, or one that would never
+fire again, leaves the stored schedule unchanged (`422`).
 
 !!! note
     Editing `payload` or `action` takes effect on the **next** fire — the
@@ -238,13 +250,18 @@ becomes `null`. `message: "Schedule paused"`.
 `POST /api/v1/schedules/{id}/resume` → **200**
 
 Re-arms a paused schedule. `status` becomes `active` and `next_run_at` is
-populated again. `message: "Schedule resumed"`.
+populated again. `message: "Schedule resumed"`. Resuming a schedule that would
+never fire again (a one-shot whose date has passed, or a window that has ended)
+returns `422` and the schedule stays `paused`.
 
 ## Run now
 
-`POST /api/v1/schedules/{id}/run` → **200**
+`POST /api/v1/schedules/{id}/run` → **202**
 
-Fires the action **once, immediately**, independent of the trigger and without
-changing `status`. Useful for testing the webhook or forcing an off-cycle run.
-`message: "Schedule triggered"`. The run's outcome is recorded in
-`last_run_at` / `last_status` / `last_error` like any scheduled fire.
+Queues the action to fire **once, immediately**, independent of the trigger and
+without changing `status` (a paused schedule can be run too). Useful for testing
+the webhook or forcing an off-cycle run. The call returns at once with
+`message: "Schedule run queued"` and the schedule as it is now; it does not wait
+for the webhook. Read the outcome from [`GET /{id}/runs`](#run-history) or
+`last_run_at` / `last_status` / `last_error`, which update like any scheduled fire.
+Calling it again before the queued run starts does not queue a second one.

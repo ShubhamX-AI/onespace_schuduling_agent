@@ -23,7 +23,7 @@ docker compose up --build                                              # api + m
 uv run ruff check .                                  # lint
 uv run ruff format .                                 # format
 uv run pytest -q                                     # all tests
-uv run pytest tests/scheduling/test_schedule_service.py::test_interval_trigger_builds   # single test
+uv run pytest tests/scheduling/test_triggers.py::test_interval_trigger_builds   # single test
 ```
 
 ## Architecture
@@ -44,9 +44,11 @@ src/
 │   ├── db/          #   db_connect.py (lifecycle) + db_schema.py (Beanie Documents)
 │   └── logging/logger.py   # logging setup + get_logger()
 └── scheduling/      # domain: business logic + the APScheduler engine
-    ├── schedule_service.py  # keeps DB and scheduler in sync
+    ├── schedule_service.py  # ownership, name uniqueness, reads
+    ├── lifecycle.py         # every status transition + its APScheduler job (incl. auto-pause, run-now)
+    ├── triggers.py          # build_trigger: timezone-aware APScheduler triggers
     ├── scheduler.py         # AsyncIOScheduler + MongoDB jobstore
-    ├── jobs.py              # job executor (fires a schedule's action)
+    ├── jobs.py              # the Run module: one fire, load to recorded outcome
     └── actions.py           # webhook action runner + notify callback
 ```
 
@@ -55,10 +57,10 @@ src/
 - **Layer direction**: inner layers never import outer ones. `core/` and `scheduling/` know nothing about `api/`. Business rules live in `src/scheduling/`, never in endpoints.
 - **models vs schemas are deliberately separate** — `src/core/db/db_schema.py` Documents are the DB shape (has `_id`, indexes); `src/api/models/` DTOs are the public API shape. Never return a Document directly; map it with `ScheduleRead.from_document(...)`. This lets the DB change without breaking clients.
 - **Ownership (multi-tenant)**: every schedule has an `owner_id`. Endpoints (except `/validate`) require an `X-Owner-Id` header → `src/api/routes/v1/_common.py:current_owner` (missing/blank = 401 `AuthError`). The service scopes *every* query by `owner_id`: `get_schedule(id, owner_id)` 404s on a mismatch (no existence leak), `name` is unique per `(owner_id, name)`. It's trust-on-header partitioning, **not** auth — an upstream gateway is assumed to set the header.
-- **One schedule = one APScheduler job**, job id == document id. `src/scheduling/schedule_service.py` keeps DB and scheduler consistent: on a scheduler failure it rolls back / leaves the DB untouched (see `create_schedule`, `update_schedule`).
+- **One schedule = one APScheduler job**, job id == document id. `src/scheduling/lifecycle.py` is the only module that arms or disarms jobs. On a failed step the schedule ends in the state that does not fire: disarm then save (startup `resync_jobs` repairs a failed save), save then arm (a failed arm reverts the DB change). Writes are partial (`$set`/`$inc`), never a full-document save. Resume resets `consecutive_errors`. A job is re-armed only when trigger fields or status change, and never armed without a future fire (422 instead). Run-now is a separate one-off job `run-now:<id>`.
 - **Triggers** are timezone-aware: `build_trigger()` injects the schedule's IANA `timezone` (and optional start/end window) into the APScheduler trigger, so firing is independent of the host clock.
 - **Actions** are what a schedule *does* on fire (the WHEN is the trigger; the WHAT is the action). One type today — `webhook` (`src/core/db/db_schema.py:WebhookAction`): the schedule's `payload` is sent as the HTTP body. The action model is shaped for future types (`queue`, `kafka`) without breaking the contract. Execution lives in `src/scheduling/actions.py:run_action` — SSRF-guarded (private/loopback hosts blocked unless `WEBHOOK_ALLOW_PRIVATE_HOSTS=true`) and retried with exponential backoff up to `max_retries`.
-- **Run outcomes** are self-recorded: `src/scheduling/jobs.py:execute_schedule` takes only the schedule id, reloads the document (DB is the source of truth — no payload in jobstore kwargs), runs the action, and writes `last_run_at/last_status/last_error/last_http_status` back.
+- **Run outcomes** are self-recorded: `src/scheduling/jobs.py:execute_schedule` takes only the schedule id, reloads the document (DB is the source of truth — no payload in jobstore kwargs), runs the action (`actions.run_action` never raises; failure is `result.error`), `$set`s only the run-summary fields, then asks `lifecycle.pause_if_failing` to atomically auto-pause at `consecutive_error_threshold`. Notify and the `ScheduleRun` insert come after, best-effort, so they can never lose the error count.
 - **Run history + notify**: each fire also inserts a `ScheduleRun` document (`onespace_scheduler_schedule_runs`, TTL-bounded by `run_history_ttl_days`) capturing status + HTTP code + truncated response body; read via `GET /schedules/{id}/runs`. If the schedule has a `notify_url`, `src/scheduling/actions.py:notify` POSTs the result there — best-effort (SSRF-guarded, no retry, failures only logged, never fail the run).
 
 ### Response envelope (every endpoint)

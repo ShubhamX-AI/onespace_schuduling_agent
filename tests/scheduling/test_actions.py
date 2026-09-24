@@ -13,19 +13,16 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from src.api.models.schedule import ScheduleCreate, WebhookAction
+from src.core.config import Settings, configure
 from src.core.db.db_schema import RunStatus
 from src.scheduling import actions
 from src.scheduling.actions import WebhookError, _assert_safe_url, _call_webhook, notify, run_action
-from tests.factories import build_schedule
+from tests.factories import build_schedule, build_webhook_action
 
 
-def _allow_private(monkeypatch: pytest.MonkeyPatch, allow: bool) -> None:
-    class _S:
-        webhook_allow_private_hosts = allow
-        webhook_response_max_chars = 2048
-        notify_timeout_seconds = 10.0
-
-    monkeypatch.setattr(actions, "get_settings", lambda: _S())
+def _allow_private(monkeypatch: pytest.MonkeyPatch, allow: bool, **overrides) -> None:
+    """Install Settings for the SSRF guard (conftest resets them after the test)."""
+    configure(Settings(webhook_allow_private_hosts=allow, **overrides))
 
 
 # --- model / DTO validation ------------------------------------------------
@@ -124,14 +121,7 @@ async def test_webhook_retries_then_fails_with_response(monkeypatch: pytest.Monk
 
 
 async def test_webhook_body_truncated(monkeypatch: pytest.MonkeyPatch) -> None:
-    _allow_private(monkeypatch, True)
-
-    class _S:
-        webhook_allow_private_hosts = True
-        webhook_response_max_chars = 5
-        notify_timeout_seconds = 10.0
-
-    monkeypatch.setattr(actions, "get_settings", lambda: _S())
+    _allow_private(monkeypatch, True, webhook_response_max_chars=5)
     _mock_client(monkeypatch, lambda req: httpx.Response(200, text="0123456789"))
     result = await _call_webhook(WebhookAction(url="http://127.0.0.1/hook"), {})
     assert result.body == "01234"
@@ -189,6 +179,34 @@ async def test_run_action_delegates_to_webhook(monkeypatch: pytest.MonkeyPatch) 
     result = await run_action(schedule)
     assert result.http_status == 200
     assert result.body == "pong"
+
+
+async def test_run_action_failure_is_a_result_not_an_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _allow_private(monkeypatch, True)
+    _mock_client(monkeypatch, lambda req: httpx.Response(502, text="bad gateway"))
+    schedule = build_schedule(action=build_webhook_action(max_retries=0))
+    result = await run_action(schedule)
+    assert (result.http_status, result.body) == (502, "bad gateway")
+    assert "failed" in result.error
+
+
+async def test_run_action_blocked_target_is_a_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    _allow_private(monkeypatch, False)
+    schedule = build_schedule(action=build_webhook_action(url="http://127.0.0.1/hook"))
+    result = await run_action(schedule)
+    assert "private host" in result.error
+    assert result.http_status is None
+
+
+async def test_run_action_unexpected_error_is_a_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _boom(*_args):
+        raise ValueError("kaboom")
+
+    monkeypatch.setattr(actions, "_call_webhook", _boom)
+    result = await run_action(build_schedule())
+    assert result.error == "kaboom"
 
 
 def test_response_of_transport_error_has_no_response() -> None:

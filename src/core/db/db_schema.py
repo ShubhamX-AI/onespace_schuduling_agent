@@ -14,8 +14,6 @@ from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pymongo import IndexModel
 
-from src.core.config import get_settings
-
 
 class TriggerType(StrEnum):
     DATE = "date"
@@ -129,16 +127,13 @@ class Schedule(Document):
             IndexModel([("status", pymongo.ASCENDING)]),
         ]
 
-    def touch(self) -> None:
-        self.updated_at = _utcnow()
 
-
-def _run_indexes() -> list[IndexModel]:
-    """Indexes for ScheduleRun: per-schedule newest-first, plus an optional TTL."""
+def run_indexes(ttl_days: int) -> list[IndexModel]:
+    """Indexes for ScheduleRun: per-schedule newest-first, plus a TTL when
+    ``ttl_days`` > 0 (0 = keep history forever)."""
     indexes = [
         IndexModel([("schedule_id", pymongo.ASCENDING), ("finished_at", pymongo.DESCENDING)])
     ]
-    ttl_days = get_settings().run_history_ttl_days
     if ttl_days > 0:
         indexes.append(
             IndexModel([("finished_at", pymongo.ASCENDING)], expireAfterSeconds=ttl_days * 86400)
@@ -163,7 +158,8 @@ class ScheduleRun(Document):
 
     class Settings:
         name = "onespace_scheduler_schedule_runs"
-        indexes = _run_indexes()
+        # The TTL comes from settings: connect_to_mongo sets it before init_beanie.
+        indexes = run_indexes(0)
 
 
 # Beanie document models registered on startup (see src/core/db/db_connect.py).

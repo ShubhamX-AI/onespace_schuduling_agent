@@ -8,10 +8,12 @@ responses, with `success: false`. Check `success` first, then read `message`
 
 | Status | When | `message` example |
 | ------ | ---- | ----------------- |
-| `422` | Invalid request body, bad trigger args, unknown timezone | `Invalid trigger_args for cron: …` |
 | `401` | Missing/blank `X-Owner-Id` header (every endpoint except `/validate`) | `Missing X-Owner-Id header` |
 | `404` | Schedule id not found, or owned by someone else | `Schedule '665f…' not found` |
 | `409` | A schedule with that `name` already exists | `Schedule 'morning-report' already exists` |
+| `409` | Two requests created (or renamed to) the same `name` at the same moment | `Schedule name already exists` |
+| `422` | Invalid request body, bad trigger args, unknown timezone | `Invalid trigger_args for cron: …` |
+| `422` | Create, resume or trigger edit would leave an active schedule that never fires again (e.g. a one-shot `date` in the past) | `Schedule has no future fire` |
 | `500` | Unexpected server error | `Internal server error` |
 
 ## Validation errors (422)
@@ -47,7 +49,7 @@ Schedules that accumulate too many consecutive errors (default threshold: 50) ar
 automatically **paused** to prevent continuous failed requests. The consecutive
 error count is tracked in the `consecutive_errors` field and can be monitored.
 When the threshold is reached, the schedule status changes to `paused` and the
-scheduler job is removed.
+scheduler job is removed. Resuming the schedule resets `consecutive_errors` to 0.
 
 See [Actions → failure handling](concepts/actions.md#failure-handling-retries-with-backoff)
 for retry behavior, and the [SSRF guard](concepts/actions.md#ssrf-protection)

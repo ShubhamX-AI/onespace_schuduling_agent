@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Indus Net Technologies  
+# Copyright (c) 2026 Indus Net Technologies
 # Licensed under the Business Source License 1.1 (BUSL-1.1)
 # See LICENSE file in the project root for full licence terms.
 # Additional Use Grant: internal deployment and modification only.
@@ -13,11 +13,11 @@ from fastapi.staticfiles import StaticFiles
 
 from src.api.routes import health
 from src.api.routes.v1.router import api_router
-from src.core.config import Settings, get_settings
+from src.core.config import Settings, configure, get_settings
 from src.core.db.db_connect import close_mongo_connection, connect_to_mongo
 from src.core.exceptions import register_exception_handlers
 from src.core.logging.logger import configure_logging, get_logger
-from src.scheduling.schedule_service import resync_jobs
+from src.scheduling.lifecycle import resync_jobs
 from src.scheduling.scheduler import shutdown_scheduler, start_scheduler
 
 logger = get_logger(__name__)
@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings: Settings = app.state.settings
+    settings = get_settings()
     await connect_to_mongo(settings)
     start_scheduler(settings)
     await resync_jobs()  # re-arm active schedules the jobstore could not restore
@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure(settings)  # one source: domain code reads the same instance
     configure_logging(settings.log_level)
 
     app = FastAPI(
@@ -48,7 +49,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         debug=settings.debug,
         lifespan=lifespan,
     )
-    app.state.settings = settings
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_v1_prefix)

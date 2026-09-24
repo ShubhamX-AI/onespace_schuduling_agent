@@ -53,7 +53,7 @@ These appear in every schedule response and are managed by the service:
 | `last_status` | Outcome of the last run: `success` or `error`. |
 | `last_error` | Error message from the last failed run, else `null`. |
 | `last_http_status` | HTTP status the webhook returned on the last run, else `null`. |
-| `consecutive_errors` | Number of consecutive errors for this schedule. Automatically paused after reaching the threshold (default 50). |
+| `consecutive_errors` | Number of consecutive errors for this schedule. Automatically paused after reaching the threshold (default 50). Reset to 0 on success and on resume. |
 | `status` | `active` (armed) or `paused` (kept, not firing). |
 | `created_at` / `updated_at` | Timestamps (UTC). |
 
@@ -68,8 +68,11 @@ create ──▶ active ──(pause)──▶ paused ──(resume)──▶ ac
 
 - **active** — armed; fires on its trigger and records each outcome.
 - **paused** — the record is kept but the scheduler job is removed, so it does
-  not fire. `next_run_at` becomes `null`. Resume to re-arm.
-- **run now** — fire once immediately, off-schedule, without changing state.
+  not fire. `next_run_at` becomes `null`. Resume to re-arm; resuming resets
+  `consecutive_errors` to 0. Resuming a schedule that can never fire again
+  (past one-shot, ended window) returns `422` and it stays paused.
+- **run now** — queue one fire immediately, off-schedule, without changing
+  state. Returns `202` at once; the outcome shows up in the run history.
 
 See the [API Reference](../api/schedules.md) for the endpoints behind each transition.
 

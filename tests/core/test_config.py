@@ -7,7 +7,7 @@
 
 import pytest
 
-from src.core.config import Settings, get_settings
+from src.core.config import Settings, configure, get_settings
 
 
 def test_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -32,7 +32,7 @@ def test_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         monkeypatch.delenv(var, raising=False)
 
-    settings = Settings()
+    settings = Settings(_env_file=None)  # defaults, not the developer's local .env
     assert settings.app_name == "OneSpace Scheduling Service"
     assert settings.app_env == "development"
     assert settings.debug is False
@@ -67,7 +67,14 @@ def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
 
 
-def test_get_settings_cache_cleared(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_configure_installs_settings_for_every_caller() -> None:
+    settings = Settings(app_name="Configured")
+    configure(settings)
+    assert get_settings() is settings
+
+
+def test_configure_none_rereads_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    configure(Settings())
     monkeypatch.setenv("APP_NAME", "Override")
-    get_settings.cache_clear()
+    configure(None)
     assert get_settings().app_name == "Override"

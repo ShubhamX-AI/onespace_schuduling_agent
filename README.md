@@ -14,7 +14,7 @@ document id). Create / update / delete / pause / resume keep the DB and schedule
 in lockstep. Triggers are timezone-aware so a schedule fires at its intended
 local time regardless of the server's clock. Each run records its outcome
 (`last_run_at`, `last_status`, `last_error`) back on the document. On fire, the
-job executor (`src/scheduling/jobs.py`) reloads the schedule and runs its action
+Run module (`src/scheduling/jobs.py`) reloads the schedule and runs its action
 via `src/scheduling/actions.py` — for a webhook, an HTTP call hardened against
 SSRF and retried with backoff.
 
@@ -131,7 +131,7 @@ production. See [docs/concepts/schedules.md](docs/concepts/schedules.md#ownershi
 | DELETE | `/api/v1/schedules/{id}`        | Delete schedule                   |
 | POST   | `/api/v1/schedules/{id}/pause`  | Pause (stop firing, keep record)  |
 | POST   | `/api/v1/schedules/{id}/resume` | Resume a paused schedule          |
-| POST   | `/api/v1/schedules/{id}/run`    | Fire once immediately, off-schedule |
+| POST   | `/api/v1/schedules/{id}/run`    | Queue one immediate fire, off-schedule (`202`) |
 
 Request bodies are validated strictly: unknown fields are rejected, `name` is
 trimmed/non-blank (renamable via `PATCH`, unique per owner), `timezone` must be a valid
@@ -175,7 +175,7 @@ Common timings, all the same `trigger_type`s:
 
 | You want…              | trigger_type | trigger_args                          |
 | ---------------------- | ------------ | ------------------------------------- |
-| Immediately / one-off  | `date`       | `{"run_date": "<now or future ISO>"}` (or call `/{id}/run`) |
+| Immediately / one-off  | `date`       | `{"run_date": "<future ISO>"}` (or call `/{id}/run`) |
 | After one day          | `date`       | `{"run_date": "2026-06-12T10:00:00"}` |
 | Every N seconds/hours  | `interval`   | `{"hours": 1}`                        |
 | Every day at a time    | `cron`       | `{"hour": 9, "minute": 0}`            |
@@ -238,9 +238,11 @@ src/
 │   ├── db/                 #   db_connect.py (lifecycle) + db_schema.py (Beanie Documents)
 │   └── logging/logger.py   #   logging setup + get_logger()
 └── scheduling/             # domain: business logic + the APScheduler engine
-    ├── schedule_service.py #   keeps DB and scheduler in sync
+    ├── schedule_service.py #   ownership, name uniqueness, reads
+    ├── lifecycle.py        #   every status transition + its APScheduler job
+    ├── triggers.py         #   timezone-aware APScheduler triggers
     ├── scheduler.py        #   AsyncIOScheduler + MongoDB jobstore
-    ├── jobs.py             #   job executor (fires a schedule's action)
+    ├── jobs.py             #   the Run module: one fire, load to recorded outcome
     └── actions.py          #   webhook action runner + notify callback
 tests/                      # pytest suite, mirrors src/ layout
 docs/                       # MkDocs usage guide, built and served at /documentation

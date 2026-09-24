@@ -18,23 +18,22 @@ from src.api.models.schedule import (
 from src.api.routes.v1._common import current_owner
 from src.core.db.db_schema import Schedule
 from src.core.exceptions import ValidationError
-from src.scheduling import schedule_service
+from src.scheduling import lifecycle, schedule_service
+from src.scheduling.triggers import build_trigger
 
 router = APIRouter()
 
 
 def _read(schedule: Schedule) -> ScheduleRead:
     """Serialize a schedule, enriching it with the live next-run time."""
-    return ScheduleRead.from_document(
-        schedule, next_run_at=schedule_service.next_run_at(str(schedule.id))
-    )
+    return ScheduleRead.from_document(schedule, next_run_at=lifecycle.next_run_at(str(schedule.id)))
 
 
 @router.post("", response_model=ApiResponse[ScheduleRead], status_code=201)
 async def create_schedule(
     data: ScheduleCreate, owner_id: str = Depends(current_owner)
 ) -> ApiResponse[ScheduleRead]:
-    schedule = await schedule_service.create_schedule(data, owner_id)
+    schedule = await schedule_service.create_schedule(data.model_dump(), owner_id)
     return ApiResponse.ok(_read(schedule), "Schedule created")
 
 
@@ -42,7 +41,9 @@ async def create_schedule(
 async def validate_trigger(data: ValidateTriggerRequest) -> ApiResponse[None]:
     """Check a trigger spec (incl. timezone) without persisting anything."""
     try:
-        schedule_service.build_trigger(data.trigger_type, data.trigger_args, data.timezone)
+        build_trigger(
+            data.trigger_type, data.trigger_args, data.timezone, data.start_date, data.end_date
+        )
     except ValidationError as exc:
         return ApiResponse(success=False, message=exc.message)
     return ApiResponse.ok(message="Trigger is valid")
@@ -77,7 +78,9 @@ async def list_runs(
 async def update_schedule(
     schedule_id: str, data: ScheduleUpdate, owner_id: str = Depends(current_owner)
 ) -> ApiResponse[ScheduleRead]:
-    schedule = await schedule_service.update_schedule(schedule_id, data, owner_id)
+    schedule = await schedule_service.update_schedule(
+        schedule_id, data.model_dump(exclude_unset=True), owner_id
+    )
     return ApiResponse.ok(_read(schedule), "Schedule updated")
 
 
@@ -105,10 +108,10 @@ async def resume_schedule(
     return ApiResponse.ok(_read(schedule), "Schedule resumed")
 
 
-@router.post("/{schedule_id}/run", response_model=ApiResponse[ScheduleRead])
+@router.post("/{schedule_id}/run", response_model=ApiResponse[ScheduleRead], status_code=202)
 async def run_schedule_now(
     schedule_id: str, owner_id: str = Depends(current_owner)
 ) -> ApiResponse[ScheduleRead]:
-    """Fire the job once immediately, independent of its schedule."""
+    """Queue one immediate fire, independent of its schedule. Poll /runs for the outcome."""
     schedule = await schedule_service.run_schedule_now(schedule_id, owner_id)
-    return ApiResponse.ok(_read(schedule), "Schedule triggered")
+    return ApiResponse.ok(_read(schedule), "Schedule run queued")
