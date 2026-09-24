@@ -16,7 +16,7 @@ OneSpace is licensed under the **Business Source License 1.1 (BUSL-1.1)** — a
 source-available licence, not open source. Clients may see, deploy, and modify
 the code for their own internal use. They may **not** resell it, white-label it,
 or host it as a service for others without a separate commercial agreement with
-Indus Net Technologies Private Limited (INT).
+Indus Net Technologies   (INT).
 
 Every repository, and every source file in it, must carry the notices below.
 This is a legal obligation, not a style preference — apply it consistently.
@@ -25,7 +25,7 @@ Licence parameters (never alter these):
 
 | Parameter | Value |
 |-----------|-------|
-| Licensor | Indus Net Technologies Private Limited |
+| Licensor | Indus Net Technologies   |
 | Licensed Work | OneSpace Platform |
 | Change Date | Four years from the date of the first public release |
 | Change License | Apache License, Version 2.0 |
@@ -94,7 +94,7 @@ name = "onespace-{service-name}"
 version = "1.0.0"
 license = "BUSL-1.1"
 authors = [
-    { name = "Indus Net Technologies Private Limited", email = "tech@intglobal.com" },
+    { name = "Indus Net Technologies  ", email = "tech@intglobal.com" },
 ]
 
 [project.urls]
@@ -109,7 +109,7 @@ Repository = "<repo url>"
 name = "onespace-{service-name}"
 version = "1.0.0"
 license = "BUSL-1.1"
-authors = ["Indus Net Technologies Private Limited <tech@intglobal.com>"]
+authors = ["Indus Net Technologies   <tech@intglobal.com>"]
 homepage = "https://intglobal.com/onespace"
 repository = "<repo url>"
 ```
@@ -121,7 +121,7 @@ repository = "<repo url>"
   "name": "onespace-{service-name}",
   "version": "1.0.0",
   "license": "BUSL-1.1",
-  "author": "Indus Net Technologies Private Limited",
+  "author": "Indus Net Technologies  ",
   "homepage": "https://intglobal.com/onespace"
 }
 ```

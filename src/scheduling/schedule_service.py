@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Copyright (c) 2026 Indus Net Technologies
 # Licensed under the Business Source License 1.1 (BUSL-1.1)
 # See LICENSE file in the project root for full licence terms.
 # Additional Use Grant: internal deployment and modification only.
@@ -13,7 +13,6 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from apscheduler.jobstores.base import JobLookupError
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -25,7 +24,7 @@ from src.core.db.db_schema import Schedule, ScheduleRun, ScheduleStatus, Trigger
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.core.logging.logger import get_logger
 from src.scheduling.jobs import execute_schedule
-from src.scheduling.scheduler import get_scheduler
+from src.scheduling.scheduler import get_scheduler, remove_job_if_exists
 
 logger = get_logger(__name__)
 
@@ -127,14 +126,6 @@ def _has_future_fire(schedule: Schedule, now: datetime) -> bool:
     return next_fire is not None and next_fire >= now
 
 
-def _safe_remove_job(schedule_id: str) -> None:
-    """Remove a job, ignoring the case where it does not exist."""
-    try:
-        get_scheduler().remove_job(schedule_id)
-    except JobLookupError:
-        pass
-
-
 def next_run_at(schedule_id: str) -> datetime | None:
     """Live next-fire time from the scheduler, or None if no active job."""
     try:
@@ -218,7 +209,7 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, owner_id: str)
     if schedule.status == ScheduleStatus.ACTIVE:
         _register_job(schedule)
     else:
-        _safe_remove_job(str(schedule.id))
+        remove_job_if_exists(str(schedule.id))
 
     schedule.touch()
     await schedule.save()
@@ -227,7 +218,7 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, owner_id: str)
 
 async def delete_schedule(schedule_id: str, owner_id: str) -> None:
     schedule = await get_schedule(schedule_id, owner_id)
-    _safe_remove_job(str(schedule.id))
+    remove_job_if_exists(str(schedule.id))
     await schedule.delete()
 
 
@@ -235,7 +226,7 @@ async def pause_schedule(schedule_id: str, owner_id: str) -> Schedule:
     """Stop a schedule from firing without deleting it."""
     schedule = await get_schedule(schedule_id, owner_id)
     if schedule.status != ScheduleStatus.PAUSED:
-        _safe_remove_job(str(schedule.id))
+        remove_job_if_exists(str(schedule.id))
         schedule.status = ScheduleStatus.PAUSED
         schedule.touch()
         await schedule.save()

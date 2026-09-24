@@ -14,7 +14,7 @@ Use the script rather than pasting by hand — it is idempotent and shebang-awar
 ## Python (`.py`)
 
 ```python
-# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Copyright (c) 2026 Indus Net Technologies  
 # Licensed under the Business Source License 1.1 (BUSL-1.1)
 # See LICENSE file in the project root for full licence terms.
 # Additional Use Grant: internal deployment and modification only.
@@ -25,7 +25,7 @@ Use the script rather than pasting by hand — it is idempotent and shebang-awar
 
 ```javascript
 /**
- * Copyright (c) 2026 Indus Net Technologies Private Limited
+ * Copyright (c) 2026 Indus Net Technologies  
  * Licensed under the Business Source License 1.1 (BUSL-1.1)
  * See LICENSE file in the project root for full licence terms.
  * Additional Use Grant: internal deployment and modification only.
@@ -36,7 +36,7 @@ Use the script rather than pasting by hand — it is idempotent and shebang-awar
 ## YAML (`.yaml`, `.yml`)
 
 ```yaml
-# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Copyright (c) 2026 Indus Net Technologies  
 # Licensed under the Business Source License 1.1 (BUSL-1.1)
 # See LICENSE in the project root for terms.
 ```
@@ -44,7 +44,7 @@ Use the script rather than pasting by hand — it is idempotent and shebang-awar
 ## Dockerfile
 
 ```dockerfile
-# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Copyright (c) 2026 Indus Net Technologies  
 # Licensed under the Business Source License 1.1 (BUSL-1.1)
 # See LICENSE in the project root for terms.
 ```
@@ -53,7 +53,7 @@ Use the script rather than pasting by hand — it is idempotent and shebang-awar
 
 ```bash
 #!/bin/bash
-# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Copyright (c) 2026 Indus Net Technologies  
 # Licensed under the Business Source License 1.1 (BUSL-1.1)
 # See LICENSE in the project root for terms.
 ```
@@ -61,7 +61,7 @@ Use the script rather than pasting by hand — it is idempotent and shebang-awar
 ## SQL migrations (`.sql`)
 
 ```sql
--- Copyright (c) 2026 Indus Net Technologies Private Limited
+-- Copyright (c) 2026 Indus Net Technologies  
 -- Licensed under the Business Source License 1.1 (BUSL-1.1)
 -- See LICENSE in the project root for terms.
 ```

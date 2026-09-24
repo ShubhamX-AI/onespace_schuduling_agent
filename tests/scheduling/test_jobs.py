@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Copyright (c) 2026 Indus Net Technologies
 # Licensed under the Business Source License 1.1 (BUSL-1.1)
 # See LICENSE file in the project root for full licence terms.
 # Additional Use Grant: internal deployment and modification only.
@@ -182,11 +182,14 @@ async def test_schedule_is_paused_after_consecutive_error_threshold_reached(
         captured["saved"] = self
 
     monkeypatch.setattr(Schedule, "save", _save)
+    removed: list[str] = []
+    monkeypatch.setattr(jobs, "remove_job_if_exists", removed.append)
 
     await jobs.execute_schedule(str(schedule.id))
 
     assert saved_schedule.consecutive_errors == 50
     assert saved_schedule.status == "paused"
+    assert removed == [str(schedule.id)]
 
 
 async def _notify_true(_s, _r) -> bool:

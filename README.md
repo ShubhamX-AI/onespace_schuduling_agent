@@ -304,7 +304,7 @@ still runs).
 
 ## Licence
 
-Copyright (c) 2026 Indus Net Technologies Private Limited.
+Copyright (c) 2026 Indus Net Technologies  .
 
 OneSpace is licensed under the [Business Source License 1.1 (BUSL-1.1)](LICENSE).
 

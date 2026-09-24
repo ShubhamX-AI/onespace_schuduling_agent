@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Indus Net Technologies Private Limited
+# Copyright (c) 2026 Indus Net Technologies
 # Licensed under the Business Source License 1.1 (BUSL-1.1)
 # See LICENSE file in the project root for full licence terms.
 # Additional Use Grant: internal deployment and modification only.
@@ -9,6 +9,7 @@ The scheduler persists its jobs in MongoDB, so registered schedules survive
 process restarts. A single AsyncIOScheduler instance is shared per process.
 """
 
+from apscheduler.jobstores.base import JobLookupError
 from apscheduler.jobstores.mongodb import MongoDBJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -44,6 +45,14 @@ def get_scheduler() -> AsyncIOScheduler:
     if _scheduler is None:
         raise RuntimeError("Scheduler not started")
     return _scheduler
+
+
+def remove_job_if_exists(job_id: str) -> None:
+    """Remove a job, ignoring the case where it does not exist."""
+    try:
+        get_scheduler().remove_job(job_id)
+    except JobLookupError:
+        pass
 
 
 async def ping_scheduler() -> None:

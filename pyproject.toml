@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Production-grade scheduling service backend (FastAPI + MongoDB + APScheduler)."
 license = "BUSL-1.1"
 authors = [
-    { name = "Indus Net Technologies Private Limited", email = "tech@intglobal.com" },
+    { name = "Indus Net Technologies  ", email = "tech@intglobal.com" },
 ]
 readme = "README.md"
 requires-python = ">=3.12"
