@@ -84,7 +84,7 @@ with the offending field(s) in `data` (see [Errors](../errors.md)):
   without a UTC offset is read in the schedule's `timezone`.
 - An **active** schedule must fire at least once more: a `date` trigger whose
   `run_date` has passed, or a window whose `end_date` has passed, returns `422`
-  (`Schedule has no future fire`) on create, resume, or a trigger edit.
+  (`Trigger has no future fire`) on create, resume, or a trigger edit (and `success: false` from `/validate`).
 - **`action.headers`** may not contain control characters (`\r`, `\n`, null) and
   are capped (≤ 50 headers, ≤ 1024 chars each).
 - A `PATCH` with no fields is rejected.
@@ -130,9 +130,9 @@ trigger that never fires again (e.g. a `date` trigger in the past).
 `POST /api/v1/schedules/validate` → **200**
 
 Check a trigger spec (including timezone and the optional `start_date` /
-`end_date` window) **without** persisting anything. Same rules as create, except
-the "must fire again" check: a `run_date` in the past is reported valid here but
-rejected by create.
+`end_date` window) **without** persisting anything. Same rules as creating an
+active schedule, including the "must fire again" check: a `run_date` in the past
+is reported invalid.
 
 **Request body:**
 

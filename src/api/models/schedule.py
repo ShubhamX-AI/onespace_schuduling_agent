@@ -18,8 +18,7 @@ from src.core.db.db_schema import (
     TriggerType,
     WebhookAction,
 )
-from src.core.exceptions import ValidationError
-from src.scheduling import triggers
+from src.scheduling.triggers import TriggerSpec, timezone_field, trigger_args_field
 
 _MAX_NAME_LEN = 128
 _MAX_DESCRIPTION_LEN = 512
@@ -47,39 +46,14 @@ def _clean_optional_text(value: str | None) -> str | None:
     return value
 
 
-# The trigger rules live in src.scheduling.triggers. These adapters re-raise
-# them as ValueError so pydantic reports the offending field in the 422.
-def _validate_timezone(value: str) -> str:
-    value = value.strip()
-    try:
-        triggers.resolve_timezone(value)
-    except ValidationError as exc:
-        raise ValueError(exc.message) from None
-    return value
-
-
-def _check_trigger_args(args: dict[str, Any]) -> dict[str, Any]:
-    try:
-        return triggers.check_trigger_args(args)
-    except ValidationError as exc:
-        raise ValueError(exc.message) from None
-
-
 def _to_str(value: Any) -> str:
     return str(value)
 
 
-class ScheduleCreate(BaseModel):
-    # Reject unknown keys so client typos (e.g. "timezzone") error out loudly.
-    model_config = ConfigDict(extra="forbid")
-
+class ScheduleCreate(TriggerSpec):
+    # Trigger fields, their rules and extra="forbid" come from TriggerSpec.
     name: str
     description: str | None = None
-    trigger_type: TriggerType
-    trigger_args: dict[str, Any] = Field(default_factory=dict)
-    timezone: str = "UTC"
-    start_date: datetime | None = None
-    end_date: datetime | None = None
     # The action's request body, kept top-level (not inside `action`) so it is
     # shared by every action type. For a webhook it is sent as the JSON body.
     # See docs/concepts/actions.md.
@@ -91,8 +65,6 @@ class ScheduleCreate(BaseModel):
 
     _clean_name = field_validator("name")(_clean_name)
     _clean_description = field_validator("description")(_clean_optional_text)
-    _validate_timezone = field_validator("timezone")(_validate_timezone)
-    _check_trigger_args = field_validator("trigger_args")(_check_trigger_args)
 
 
 class ScheduleUpdate(BaseModel):
@@ -132,8 +104,8 @@ class ScheduleUpdate(BaseModel):
     # Same rules as create; only run when the field is provided.
     _clean_name = field_validator("name")(_clean_name)
     _clean_description = field_validator("description")(_clean_optional_text)
-    _validate_timezone = field_validator("timezone")(_validate_timezone)
-    _check_trigger_args = field_validator("trigger_args")(_check_trigger_args)
+    _timezone_field = field_validator("timezone")(timezone_field)
+    _trigger_args_field = field_validator("trigger_args")(trigger_args_field)
 
 
 class ScheduleRead(BaseModel):
@@ -190,16 +162,3 @@ class ScheduleRunRead(BaseModel):
     @classmethod
     def from_document(cls, doc: ScheduleRun) -> "ScheduleRunRead":
         return cls.model_validate(doc)
-
-
-class ValidateTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    trigger_type: TriggerType
-    trigger_args: dict[str, Any] = Field(default_factory=dict)
-    timezone: str = "UTC"
-    start_date: datetime | None = None
-    end_date: datetime | None = None
-
-    _validate_timezone = field_validator("timezone")(_validate_timezone)
-    _check_trigger_args = field_validator("trigger_args")(_check_trigger_args)

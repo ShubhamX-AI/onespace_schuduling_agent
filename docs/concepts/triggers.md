@@ -21,7 +21,7 @@ at the intended local time regardless of the server's clock.
 ## `date` — one-shot
 
 Fires exactly once, then the schedule stops firing. `run_date` must be in the
-future: a past one returns `422` (`Schedule has no future fire`) on create or
+future: a past one returns `422` (`Trigger has no future fire`) on create or
 resume. A `run_date` without a UTC offset is read in the schedule's `timezone`.
 
 ```json

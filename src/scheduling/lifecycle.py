@@ -28,30 +28,15 @@ from beanie import PydanticObjectId
 
 from src.core.config import get_settings
 from src.core.db.db_schema import Schedule, ScheduleStatus
-from src.core.exceptions import ValidationError
 from src.core.logging.logger import get_logger
 from src.scheduling.scheduler import get_scheduler
-from src.scheduling.triggers import TRIGGER_FIELDS, trigger_for
+from src.scheduling.triggers import TRIGGER_FIELDS, armable_trigger, build_trigger, has_future_fire
 
 logger = get_logger(__name__)
 
 # A text reference, not the function: jobs imports this module, and the MongoDB
 # jobstore stores this same string for every job anyway.
 _EXECUTOR = "src.scheduling.jobs:execute_schedule"
-
-
-def _has_future_fire(trigger, now: datetime) -> bool:
-    next_fire = trigger.get_next_fire_time(None, now)
-    return next_fire is not None and next_fire >= now
-
-
-def _armable_trigger(schedule: Schedule):
-    """The schedule's trigger, or ValidationError when it would never fire again
-    (e.g. a one-shot whose date has passed): arming it would only misfire."""
-    trigger = trigger_for(schedule)
-    if not _has_future_fire(trigger, datetime.now(UTC)):
-        raise ValidationError("Schedule has no future fire")
-    return trigger
 
 
 def _arm(schedule: Schedule, trigger) -> None:
@@ -76,7 +61,7 @@ async def create(schedule: Schedule) -> None:
     """Insert a new schedule and arm it if active. Nothing is kept on failure."""
     active = schedule.status == ScheduleStatus.ACTIVE
     # validate before persisting
-    trigger = _armable_trigger(schedule) if active else trigger_for(schedule)
+    trigger = armable_trigger(schedule) if active else build_trigger(schedule)
     await schedule.insert()
     if active:
         try:
@@ -104,7 +89,7 @@ async def apply(schedule: Schedule, changes: dict[str, Any]) -> None:
     # Validate before any write. Pausing alone must not fail on a stored trigger.
     if not active:
         if trigger_changed:
-            trigger_for(schedule.model_copy(update=changes))
+            build_trigger(schedule.model_copy(update=changes))
         _disarm(str(schedule.id))
         await schedule.set(changes)
         return
@@ -115,7 +100,7 @@ async def apply(schedule: Schedule, changes: dict[str, Any]) -> None:
         await schedule.set(changes)
         return
 
-    trigger = _armable_trigger(schedule.model_copy(update=changes))
+    trigger = armable_trigger(schedule.model_copy(update=changes))
     before = {field: getattr(schedule, field) for field in changes}
     await schedule.set(changes)
     try:
@@ -182,7 +167,7 @@ async def resync_jobs() -> dict[str, int]:
         try:
             if scheduler.get_job(str(schedule.id)) is not None:
                 skipped += 1
-            elif _has_future_fire(trigger := trigger_for(schedule), now):
+            elif has_future_fire(trigger := build_trigger(schedule), now):
                 _arm(schedule, trigger)
                 restored += 1
             else:

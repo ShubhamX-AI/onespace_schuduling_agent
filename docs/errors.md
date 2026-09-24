@@ -13,7 +13,7 @@ responses, with `success: false`. Check `success` first, then read `message`
 | `409` | A schedule with that `name` already exists | `Schedule 'morning-report' already exists` |
 | `409` | Two requests created (or renamed to) the same `name` at the same moment | `Schedule name already exists` |
 | `422` | Invalid request body, bad trigger args, unknown timezone | `Invalid trigger_args for cron: …` |
-| `422` | Create, resume or trigger edit would leave an active schedule that never fires again (e.g. a one-shot `date` in the past) | `Schedule has no future fire` |
+| `422` | Create, resume or trigger edit would leave an active schedule that never fires again (e.g. a one-shot `date` in the past) | `Trigger has no future fire` |
 | `500` | Unexpected server error | `Internal server error` |
 
 ## Validation errors (422)

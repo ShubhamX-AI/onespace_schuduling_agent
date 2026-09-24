@@ -2,7 +2,7 @@
 
 **Schedule** — a stored definition of *when* (trigger) and *what* (action) to fire, owned by one `owner_id`. Status is `active` (armed) or `paused` (kept, not firing).
 
-**Trigger** — the WHEN: `date` (one-shot), `interval` or `cron`, evaluated in the schedule's IANA timezone, optionally inside a start/end window.
+**Trigger** — the WHEN: `date` (one-shot), `interval` or `cron`, evaluated in the schedule's IANA timezone, optionally inside a start/end window. Its five fields form a **trigger spec** (`src/scheduling/triggers.py:TriggerSpec`), shared by the request models. A trigger is **armable** when it is valid and still has a future fire; `/validate`, create and resume all use that same check (`armable_trigger`).
 
 **Action** — the WHAT: today only `webhook`, which sends the schedule's `payload` as the HTTP body.
 

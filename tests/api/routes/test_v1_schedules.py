@@ -47,13 +47,25 @@ async def test_validate_mixed_aware_and_naive_window_is_not_a_500(client: AsyncC
         json={
             "trigger_type": "interval",
             "trigger_args": {"seconds": 30},
-            "start_date": "2026-09-01T00:00:00Z",
-            "end_date": "2026-09-02T00:00:00",
+            "start_date": "2099-09-01T00:00:00Z",
+            "end_date": "2099-09-02T00:00:00",
         },
     )
 
     assert response.status_code == 200
     assert response.json()["success"] is True
+
+
+async def test_validate_rejects_a_trigger_that_never_fires_again(client: AsyncClient) -> None:
+    """Same rule as create: a past one-shot is not reported valid."""
+    response = await client.post(
+        "/api/v1/schedules/validate",
+        json={"trigger_type": "date", "trigger_args": {"run_date": "2020-01-01T00:00:00Z"}},
+    )
+
+    assert response.status_code == 200  # documented: read `success`
+    assert response.json()["success"] is False
+    assert "no future fire" in response.json()["message"]
 
 
 async def test_validate_checks_the_active_window(client: AsyncClient) -> None:

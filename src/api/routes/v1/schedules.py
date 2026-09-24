@@ -13,13 +13,12 @@ from src.api.models.schedule import (
     ScheduleRead,
     ScheduleRunRead,
     ScheduleUpdate,
-    ValidateTriggerRequest,
 )
 from src.api.routes.v1._common import current_owner
 from src.core.db.db_schema import Schedule
 from src.core.exceptions import ValidationError
 from src.scheduling import lifecycle, schedule_service
-from src.scheduling.triggers import build_trigger
+from src.scheduling.triggers import TriggerSpec, armable_trigger
 
 router = APIRouter()
 
@@ -38,12 +37,10 @@ async def create_schedule(
 
 
 @router.post("/validate", response_model=ApiResponse[None])
-async def validate_trigger(data: ValidateTriggerRequest) -> ApiResponse[None]:
-    """Check a trigger spec (incl. timezone) without persisting anything."""
+async def validate_trigger(data: TriggerSpec) -> ApiResponse[None]:
+    """Check a trigger spec would arm (valid, fires again) without persisting anything."""
     try:
-        build_trigger(
-            data.trigger_type, data.trigger_args, data.timezone, data.start_date, data.end_date
-        )
+        armable_trigger(data)
     except ValidationError as exc:
         return ApiResponse(success=False, message=exc.message)
     return ApiResponse.ok(message="Trigger is valid")
