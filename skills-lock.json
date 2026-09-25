@@ -11,25 +11,25 @@
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-add-health-endpoint/SKILL.md",
-      "computedHash": "c38c7109ffb2b42feae2fd76e3c79d9d9cc1686d741eb366ffe4e116854eccb7"
+      "computedHash": "f570cc3628ccf7263aa501ebe0f9c049e0087502176fa357ab7fccfd82b80559"
     },
     "onespace-be-audit-code": {
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-audit-code/SKILL.md",
-      "computedHash": "2d430b3229cea663fbbefcc8b17fdcc76b708d8555835f561d896ee458cc9996"
+      "computedHash": "ab7fcde65843b5c2b2f5b4605f15b002af6377eed2631188c23c02a622614694"
     },
     "onespace-be-audit-security": {
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-audit-security/SKILL.md",
-      "computedHash": "388f1c48441344ec6fc03252fca4e53677e805644cf64e98fe682f5eaea8b468"
+      "computedHash": "3db4169c5fe55c2e59092ccdfd2dc3b83a96c5cfb0a65827344c091fe1994a79"
     },
     "onespace-be-build-feature": {
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-build-feature/SKILL.md",
-      "computedHash": "943bc9c0a0db869bef6d3e8d322117726feb3dddbb48703cbd57e7f6998b87e5"
+      "computedHash": "3802dbf353d6f2f2e2f86377a94bae80268a1bce64f811d5fe61ca14ac36d1c8"
     },
     "onespace-be-busl-licence-compliance": {
       "source": "shubhamINT/agent_rules",
@@ -41,37 +41,37 @@
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-coding-standards/SKILL.md",
-      "computedHash": "06571f111f9c1ed78a7ea286b518807472730468da89cd36223d2742ba03d294"
+      "computedHash": "75080562a7d32bebeb1d4aad646e72a4705a83b8124c3dff67d0931df4ad9bb5"
     },
     "onespace-be-debug": {
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-debug/SKILL.md",
-      "computedHash": "b022e6e422d25136c579eb8a506f11512add7b63486a1a099f944f0fcc140de7"
+      "computedHash": "538e39b99bd7433774eda0753357cbd5a0f45eb1cbcea50ffeeb72a79e6e765a"
     },
     "onespace-be-refactor-code": {
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-refactor-code/SKILL.md",
-      "computedHash": "f14df1ef691e594690b96b7c5a5524dd3138ee951de2c2d95b6710e6c546b657"
+      "computedHash": "ba79d1ade3274f1e451e5856afb39b2d735fa77fe6ad1b7c00c41001313cf638"
     },
     "onespace-be-structure-service": {
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-structure-service/SKILL.md",
-      "computedHash": "1a265028940c0385903697185712bf0ef228f1668a4cd727faee0deba7ca4af6"
+      "computedHash": "8b3714d9d0c3f8fd6a4cc83c7022c6bfade96ef693adc1d4502c4a3a4b6e10fa"
     },
     "onespace-be-workflow": {
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-workflow/SKILL.md",
-      "computedHash": "c7ef41988655792973c8bb3ac29ffb26ea2961be6235d3f1f1eeeab46a763c9a"
+      "computedHash": "99516ef8b9cea611afa04dcda4ada1e22aac92d33853b9b1d9b8350130a13258"
     },
     "onespace-be-write-tests": {
       "source": "shubhamINT/agent_rules",
       "sourceType": "github",
       "skillPath": "onespace-backend/.agents/skills/onespace-be-write-tests/SKILL.md",
-      "computedHash": "89ddd796de5b25dbde99a7d9e6e70b0966d578c67db6e6f1bbdea98493648fa3"
+      "computedHash": "ff47a97a82010818264adf009d5aa28a1b96c83a7b259a2253f6f5f6c3e2e0c6"
     }
   }
 }

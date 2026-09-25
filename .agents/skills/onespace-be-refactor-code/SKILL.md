@@ -19,8 +19,12 @@ value: reviewers can approve a large diff because nothing observable changed.
 Break it — sneak in a fix, a feature, or an API change — and the diff becomes
 unreviewable. Behaviour changes are separate tasks.
 
-Prerequisite: `onespace-be-workflow` phases 1–3 are done (scope agreed, tracking
-created). This skill supplies the content of phases 4–7.
+**Gate — before anything else:** load `onespace-be-workflow`. If
+`agent-tracking/plans/<slug>/scope.md` for this task is missing, or its
+"Agreed scope" rows are not all filled, run `onespace-be-workflow` phases 1–3 now and
+end your turn at the scope questions. Invoking this skill directly (a slash command, a one-line
+request) is not an exemption, and harness plan mode does not replace
+`plan.md`. This skill supplies the content of phases 4–7.
 
 Yardsticks: `onespace-be-coding-standards` (what good looks like),
 `onespace-be-coding-standards/references/smells-and-refactorings.md`
@@ -100,13 +104,17 @@ changes unless approved, expected before/after metrics.
 - Delete dead code instead of commenting it out. Delete tests that only tested
   deleted shallow wrappers once the deeper interface is tested (replace, don't
   layer — see `onespace-be-coding-standards/references/DEEPENING.md`).
-- New files get the BUSL header (`onespace-be-busl-licence-compliance`).
+- New files get the BUSL header: load `onespace-be-busl-licence-compliance` and run its header script.
 - Structure moved? Update README project tree in the same change.
 - Before the report, a fresh-context `reviewer` subagent checks the diff for
   behaviour changes and scope creep; a large move follows
   `onespace-be-workflow/references/SAFE-DELIVERY.md`.
 
 ## Phase 7 — Report
+
+Write the report to `agent-tracking/reports/<slug>.html` (or `.md`). Never the
+repo root, the temp directory, or a hosted page (claude.ai Artifact, gist, docs
+connector).
 
 Use `onespace-be-workflow` report template and `onespace-be-workflow/references/VISUAL-REPORT.md`.
 Refactor-specific content:

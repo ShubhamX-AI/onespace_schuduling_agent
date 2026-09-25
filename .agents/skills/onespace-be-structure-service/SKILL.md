@@ -31,6 +31,11 @@ References:
 | `references/onespace-node-layout.md` | Variant used by existing OneSpace Node services |
 | `references/readme-standard.md` | README sections every service keeps current |
 
+**Gate — when this is the task itself** (not a step inside another task):
+load `onespace-be-workflow` and run its phases 1–3 before anything else. Invoking this
+skill directly (a slash command, a one-line request) is not an exemption,
+and harness plan mode does not replace `plan.md`.
+
 ---
 
 ## Step 1 — Look for a recorded decision

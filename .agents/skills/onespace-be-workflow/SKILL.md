@@ -20,8 +20,13 @@ file on disk before the next begins. The files are the audit trail: a reviewer
 who never saw the conversation must be able to reconstruct what was asked, what
 was decided, and what was done.
 
-Trivial tasks (a question, a typo, a one-line rename) skip this skill. If you
-are unsure, the task is not trivial.
+Trivial tasks (a question, a typo, a one-line rename) skip this skill. Unsure =
+not trivial. Touching more than one file, any trust boundary (auth, input
+parsing, external calls, secrets), or any public interface is never trivial.
+
+Paths like `onespace-be-<skill>/references/<file>.md` name a sibling skill: resolve
+them from the parent of this skill's base directory. Sibling missing? Tell the
+user to install the whole pack.
 
 ---
 
@@ -37,6 +42,8 @@ Name the task type. It sets the slug and which skills apply.
 | `security` | `onespace-be-audit-security` |
 | `test` | `onespace-be-write-tests` |
 | `debug` | `onespace-be-debug` |
+| `structure` | `onespace-be-structure-service` |
+| `health` | `onespace-be-add-health-endpoint` |
 
 A request can span types ("audit and fix"). Split it: the audit is one task, the
 fix is a second task planned from the audit's findings. This keeps each report
@@ -164,6 +171,9 @@ which checklists, which tools); the output is a report, not code changes.
 
 ## Phase 6 — Execute
 
+Before the first edit, load `onespace-be-coding-standards`; before creating any
+file, load `onespace-be-busl-licence-compliance`.
+
 Work through the checklist in order. After each step:
 
 1. tick the box in `plan.md`
@@ -185,7 +195,8 @@ Set INDEX status `in-progress`.
 
 Produce `agent-tracking/reports/<slug>.html` or
 `agent-tracking/reports/<slug>.md` in the format the user chose. Always write
-it there, never to the OS temp directory, the repo root, or only to chat, so
+it there, never to the OS temp directory, the repo root, a hosted page (claude.ai
+Artifact, gist, docs connector), or only to chat, so
 the report sits next to its scope, plan, and progress. Build it from
 `templates/report.html` or `templates/report.md`. Every report has:
 

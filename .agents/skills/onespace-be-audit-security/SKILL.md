@@ -9,7 +9,7 @@ description: >
   review, vulnerability scan, pentest-style code review, "is this secure",
   "check for vulnerabilities", "OWASP check", secrets scan, or a review of code
   touching auth, input handling, file uploads, external calls or LLM calls —
-  after scope is agreed via onespace-be-workflow. Produces a traceable findings report;
+  starting with onespace-be-workflow scoping (phases 1–3). Produces a traceable findings report;
   fixes only when remediation is explicitly in scope.
 ---
 
@@ -23,9 +23,13 @@ packages that do not exist. So an audit is systematic: tools first to catch the
 cheap things, then a human-style review against published standards, every
 finding traceable to a standard ID and a `file:line`.
 
-Prerequisite: `onespace-be-workflow` phases 1–3 (scope agreed, including ASVS level —
-L2 default — and whether the service calls an LLM). This skill supplies phases
-4–7.
+**Gate — before anything else:** load `onespace-be-workflow`. If
+`agent-tracking/plans/<slug>/scope.md` for this task is missing, or its
+"Agreed scope" rows are not all filled, run `onespace-be-workflow` phases 1–3 now and
+end your turn at the scope questions. Invoking this skill directly (a slash command, a one-line
+request) is not an exemption, and harness plan mode does not replace
+`plan.md`. Scope must include ASVS level (L2 default) and whether the
+service calls an LLM. This skill supplies phases 4–7.
 
 **Default is report-only.** Do not modify source code during an audit unless the
 user scoped remediation. Remediation is a separate, planned task built from the
@@ -155,6 +159,11 @@ Rate by impact × likelihood in *this* deployment. Explain the rating in one lin
 | **Info** | Hardening suggestion, defence in depth |
 
 ## Phase 7 — Report
+
+Write the report to `agent-tracking/reports/<slug>.html` (or `.md`). Never the
+repo root, the temp directory, or a hosted page (claude.ai Artifact, gist, docs
+connector): audit findings stay local. If the user asks for another location,
+state this rule first, then follow their answer.
 
 `onespace-be-workflow` report template; HTML default. Visuals per
 `onespace-be-workflow/references/VISUAL-REPORT.md`: severity tiles and severity bar, and a

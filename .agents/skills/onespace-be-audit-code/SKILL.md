@@ -8,7 +8,7 @@ description: >
   comments that lie). Use whenever the user asks to review, audit, or assess
   code — "check for bad code", "is this code ok", "review this PR / module",
   "code quality report", "review what Copilot/Claude/Cursor wrote", "find bugs"
-  — after scope is agreed via onespace-be-workflow. Produces a traceable findings report
+  — starting with onespace-be-workflow scoping (phases 1–3). Produces a traceable findings report
   that names each smell and the refactoring that fixes it; fixes nothing unless
   remediation is in scope. For vulnerabilities use onespace-be-audit-security (they can run
   together).
@@ -22,7 +22,12 @@ named (a bug class or a Fowler smell), justified (why it hurts here), and
 actionable (the named refactoring or fix). Vague feedback ("could be cleaner")
 is not a finding.
 
-Prerequisite: `onespace-be-workflow` phases 1–3 (request recorded, scope agreed). This skill
+**Gate — before anything else:** load `onespace-be-workflow`. If
+`agent-tracking/plans/<slug>/scope.md` for this task is missing, or its
+"Agreed scope" rows are not all filled, run `onespace-be-workflow` phases 1–3 now and
+end your turn at the scope questions. Invoking this skill directly (a slash
+command, a one-line request) is not an exemption, and harness plan mode does
+not replace `plan.md`. This skill
 supplies phases 4–7. **Default is report-only.** Fixing is a separate planned
 task (`onespace-be-refactor-code` for structure, `onespace-be-build-feature`/a fix task for behaviour).
 
@@ -64,6 +69,8 @@ split them into groups (by module or trust boundary) and give each group to a
 read-only `investigator` subagent with the checklist below
 (`onespace-be-workflow/references/SUBAGENTS.md`). You own the report: open
 every returned `file:line` and confirm the finding before it goes in.
+Subagent and Explore excerpts are leads, not a review: read every in-scope
+file yourself. Depth comes from `scope.md`; if it was never agreed, ask.
 
 For each in-scope file, walk these in order — earlier ones matter more:
 
@@ -114,6 +121,11 @@ readability · **Info** observation. Bugs that are exploitable belong in
 `onespace-be-audit-security` with security severity.
 
 ## Phase 7 — Report
+
+Write the report to `agent-tracking/reports/<slug>.html` (or `.md`). Never the
+repo root, the temp directory, or a hosted page (claude.ai Artifact, gist, docs
+connector): audit findings stay local. If the user asks for another location,
+state this rule first, then follow their answer.
 
 `onespace-be-workflow` report template in the agreed format (HTML default). Visuals per
 `onespace-be-workflow/references/VISUAL-REPORT.md`: severity tiles and severity bar, one

@@ -25,6 +25,11 @@ This skill defines the **contract and the rules**. They are identical across
 languages. Only syntax differs — see `references/` for a working implementation
 in your stack.
 
+**Gate — when this is the task itself** (not a step inside another task):
+load `onespace-be-workflow` and run its phases 1–3 before anything else. Invoking this
+skill directly (a slash command, a one-line request) is not an exemption,
+and harness plan mode does not replace `plan.md`.
+
 ---
 
 ## The contract

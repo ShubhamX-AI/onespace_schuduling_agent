@@ -16,7 +16,12 @@ A feature is done when it does what was agreed, is tested through its
 interface, is safe at its trust boundaries, sits in the right place, and the
 docs say it exists. Code that works on the happy path is roughly a third of that.
 
-Prerequisite: `onespace-be-workflow` phases 1–3. This skill supplies phases 4–7.
+**Gate — before anything else:** load `onespace-be-workflow`. If
+`agent-tracking/plans/<slug>/scope.md` for this task is missing, or its
+"Agreed scope" rows are not all filled, run `onespace-be-workflow` phases 1–3 now and
+end your turn at the scope questions. Invoking this skill directly (a slash command, a one-line
+request) is not an exemption, and harness plan mode does not replace
+`plan.md`. This skill supplies phases 4–7.
 
 ## Phase 4 — Research
 
@@ -86,7 +91,8 @@ approval.
    - errors through the central handler; no internals in responses
 4. **No new dependency** unless the plan approved it — then verify it exists, is
    maintained, licence-compatible, and regenerate `THIRD_PARTY_LICENSES.md`.
-5. **Licence header** on every new file (`onespace-be-busl-licence-compliance`).
+5. **Licence header** on every new file: load `onespace-be-busl-licence-compliance` and run its header
+   script.
 6. **Docs in the same change**: README endpoint table, env table, structure
    tree, data stores; docstrings / JSDoc on public functions.
 7. Log each step in `progress.md`.
@@ -105,6 +111,10 @@ finding before the gates.
   `--check`. All green, no new ignores.
 
 ## Phase 7 — Report
+
+Write the report to `agent-tracking/reports/<slug>.html` (or `.md`). Never the
+repo root, the temp directory, or a hosted page (claude.ai Artifact, gist, docs
+connector).
 
 `onespace-be-workflow` report template and `onespace-be-workflow/references/VISUAL-REPORT.md`.
 Required visuals: a Current → Target component graph with the added parts

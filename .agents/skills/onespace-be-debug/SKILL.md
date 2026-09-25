@@ -19,8 +19,11 @@ patch that makes the symptom disappear in one test while the bug lives on. This
 skill stops that by demanding evidence at each step. No fix is written until
 the bug is reproduced and the root cause is shown, not guessed.
 
-Prerequisite: `onespace-be-workflow` phases 1–2 (task type `debug`, request
-recorded). Scoping is light: the bug report is the scope. Ask only for what is
+**Gate — before anything else:** load `onespace-be-workflow`. If
+`agent-tracking/plans/<slug>/scope.md` for this task is missing, run
+`onespace-be-workflow` phases 1–2 now (task type `debug`, request recorded).
+Invoking this skill directly (a slash command, a one-line request) is not an
+exemption, and harness plan mode does not replace `plan.md`. Scoping is light: the bug report is the scope. Ask only for what is
 missing from:
 
 - **Symptom** — exact error, status code, wrong output, or timing.
@@ -128,6 +131,10 @@ after.
 the agent. Work from logs and recreated data shapes offline.
 
 ## Phase 7 — Report
+
+Write the report to `agent-tracking/reports/<slug>.html` (or `.md`). Never the
+repo root, the temp directory, or a hosted page (claude.ai Artifact, gist, docs
+connector).
 
 `onespace-be-workflow` report template and
 `onespace-be-workflow/references/VISUAL-REPORT.md`. Required: symptom, root

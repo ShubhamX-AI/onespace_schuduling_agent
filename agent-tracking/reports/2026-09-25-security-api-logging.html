@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security audit API logging — 2026-09-25-security-api-logging</title>
+<style>
+  :root {
+    --fg: #1f2937; --muted: #6b7280; --line: #e5e7eb; --soft: #f9fafb; --accent: #4f46e5;
+    --crit: #991b1b; --high: #dc2626; --med: #d97706; --low: #2563eb; --info: #6b7280;
+    --ok: #059669; --ok-bg: #ecfdf5; --chg-bg: #fffbeb; --bad-bg: #fef2f2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fff; color: var(--fg); font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 40px 16px 64px; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.75rem; margin: 0 0 6px; }
+  h2 { font-size: 1.2rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); }
+  h3 { font-size: 1rem; margin: 24px 0 8px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+  .meta, .legend { color: var(--muted); font-size: .88rem; margin: 2px 0; }
+  .headline { font-size: 1.05rem; margin: 14px 0 0; }
+  .legend b, .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem; }
+  code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--soft); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 0; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; margin: 12px 0; }
+  .two, .ct { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .two, .ct { grid-template-columns: 1fr; } }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+  dt { color: var(--muted); font-weight: 600; } dd { margin: 0; }
+
+  /* summary numbers */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin: 12px 0; }
+  .tile { border: 1px solid var(--line); border-radius: 8px; padding: 10px; text-align: center; color: var(--muted); font-size: .85rem; }
+  .tile b { display: block; font-size: 1.6rem; color: var(--fg); }
+  .tile.crit b { color: var(--crit); } .tile.high b { color: var(--high); } .tile.med b { color: var(--med); }
+  .tile.low b { color: var(--low); } .tile.info b { color: var(--info); }
+  .sevbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--line); }
+  .sevbar .crit { background: var(--crit); } .sevbar .high { background: var(--high); } .sevbar .med { background: var(--med); }
+  .sevbar .low { background: var(--low); } .sevbar .info { background: var(--info); }
+
+  /* current -> target */
+  .panel { margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-height: 280px; overflow-x: auto; }
+  .panel figcaption { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+  .mermaid { background: none; padding: 0; text-align: center; }
+  .adr { border-left: 3px solid var(--med); padding: 4px 12px; margin-top: 10px; }
+  .tree .add { color: var(--ok); font-weight: 600; } .tree .chg { color: var(--med); font-weight: 600; }
+  .tree .del { color: var(--info); text-decoration: line-through; } .tree .bad { color: var(--high); font-weight: 600; }
+  .tree .why { color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+  .box { border: 1px solid var(--fg); border-radius: 6px; padding: 4px 10px; }
+  .box.add { border-color: var(--ok); background: var(--ok-bg); } .box.chg { border-color: var(--med); background: var(--chg-bg); }
+  .box.bad { border-color: var(--high); background: var(--bad-bg); } .box.del { border: 1px dashed var(--info); color: var(--info); text-decoration: line-through; }
+  .box.deep { border: 3px solid var(--fg); padding: 10px 12px; }
+
+  /* tables */
+  .table-wrap { overflow-x: auto; margin: 12px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { display: block; height: 4px; background: var(--accent); border-radius: 2px; margin-top: 4px; margin-left: auto; }
+  .sev { font-weight: 700; } .sev.crit { color: var(--crit); } .sev.high { color: var(--high); }
+  .sev.med { color: var(--med); } .sev.low { color: var(--low); } .sev.info { color: var(--info); }
+  .pass, .better { color: var(--ok); font-weight: 600; } .fail, .worse { color: var(--high); font-weight: 600; }
+  .finding { border-left: 3px solid var(--info); } .finding.crit { border-left-color: var(--crit); }
+  .finding.high { border-left-color: var(--high); } .finding.med { border-left-color: var(--med); } .finding.low { border-left-color: var(--low); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Security audit — API layer and logging</h1>
+    <p class="meta">security · 2026-09-25 · slug <code>2026-09-25-security-api-logging</code> · ASVS 5.0 L2 · standard depth</p>
+    <p class="meta">Trace:
+      <a href="../plans/2026-09-25-security-api-logging/scope.md">scope</a> ·
+      <a href="../research/2026-09-25-security-api-logging.md">research</a> ·
+      <a href="../plans/2026-09-25-security-api-logging/plan.md">plan</a> ·
+      <a href="../plans/2026-09-25-security-api-logging/progress.md">progress</a></p>
+    <p class="legend"><b>Legend</b> solid box = component · <span class="fail">red</span> = problem / missing control</p>
+    <p class="headline">Reviewed every HTTP entry point, the logging setup and every log call site, and the webhook/notify path that API input reaches. 11 findings: 2 High (tenant identity is an unverified header on a published port; SSRF guard bypassable, with a read-back channel), 4 Medium, 3 Low, 2 Info. No secrets found in code. No source changed; a proposed patch is given per finding.</p>
+  </header>
+
+  <section id="summary">
+    <h2>1. Summary</h2>
+    <div class="tiles">
+      <div class="tile crit"><b>0</b>Critical</div>
+      <div class="tile high"><b>2</b>High</div>
+      <div class="tile med"><b>4</b>Medium</div>
+      <div class="tile low"><b>3</b>Low</div>
+      <div class="tile info"><b>2</b>Info</div>
+    </div>
+    <div class="sevbar">
+      <span class="high" style="width:18.2%"></span><span class="med" style="width:36.4%"></span><span class="low" style="width:27.3%"></span><span class="info" style="width:18.2%"></span>
+    </div>
+    <p>Fix order: S-001 and S-002 first (both reachable by any client that can reach the port), then S-003 (abuse as an outbound traffic relay), then S-004/S-005 (credentials leaking through reads and logs).</p>
+  </section>
+
+  <section id="scope">
+    <h2>2. Scope</h2>
+    <div class="two">
+      <div class="card"><span class="label">In</span>
+        <p><code>server.py</code>, <code>server_run.py</code>, <code>src/api/**</code>, <code>src/core/exceptions.py</code>, <code>src/core/config.py</code>, <code>src/core/logging/</code>, every log call site in <code>src/</code>, the webhook/notify SSRF path (<code>src/scheduling/actions.py</code>, <code>WebhookAction</code> in <code>src/core/db/db_schema.py</code>), <code>Dockerfile</code>, <code>docker-compose.yml</code>, <code>.env.example</code>, dependency lockfile.</p></div>
+      <div class="card"><span class="label">Out</span>
+        <p>tests/, docs/, site/ content, deploy scripts, MongoDB server hardening, scheduling internals not reached from API input. LLM checklist: not applicable (no LLM calls).</p></div>
+    </div>
+    <p>Constraints: report only, no source edits. Full scope: <a href="../plans/2026-09-25-security-api-logging/scope.md">scope.md</a>.</p>
+  </section>
+
+  <section id="method">
+    <h2>3. Method</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Tool</th><th>Version</th><th>Command</th><th class="num">Hits</th><th>Result</th></tr>
+      <tr><td>ruff (bandit rules)</td><td>0.16.9</td><td><code>uvx ruff check --select S,BLE,ASYNC src server.py server_run.py</code></td><td class="num">4</td><td>all false positive (appendix)</td></tr>
+      <tr><td>semgrep</td><td>1.178.0</td><td><code>p/python p/owasp-top-ten p/secrets</code></td><td class="num">1</td><td>false positive (appendix)</td></tr>
+      <tr><td>pip-audit</td><td>2.10.1</td><td><code>uv export --no-dev</code> then <code>pip-audit -r … --no-deps</code></td><td class="num">7</td><td>3 packages, S-009</td></tr>
+      <tr><td>gitleaks</td><td>—</td><td>not installed</td><td class="num">—</td><td><span class="fail">not run</span>; manual grep found no secrets in tracked files</td></tr>
+    </table></div>
+    <p>Checklists (onespace-be-audit-security): access control, authentication, injection, input validation and resource limits, SSRF, files and paths, deserialization, secrets and crypto, configuration, supply chain, logging and error handling. Standards: OWASP Top 10:2025, OWASP API Security Top 10:2023, ASVS 5.0 (L2), CWE Top 25 2025. Runtime facts (ipaddress ranges, httpx redirects, Starlette debug path, trigger limits) checked by executing the installed libraries; see research.</p>
+  </section>
+
+  <section id="surface">
+    <h2>4. Attack surface</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Entry point</th><th>Auth</th><th>Input</th><th>Reaches</th></tr>
+      <tr><td><code>POST/GET/PATCH/DELETE /api/v1/schedules[/{id}]</code>, <code>/pause</code>, <code>/resume</code>, <code>/run</code>, <code>/runs</code></td><td><code>X-Owner-Id</code>, trusted as-is</td><td>pydantic, <code>extra="forbid"</code></td><td>MongoDB, APScheduler, later outbound HTTP</td></tr>
+      <tr><td><code>POST /api/v1/schedules/validate</code></td><td>none</td><td><code>TriggerSpec</code></td><td>trigger construction only</td></tr>
+      <tr><td><code>GET /health</code></td><td>none</td><td>—</td><td>Mongo ping; returns exception text</td></tr>
+      <tr><td><code>/docs</code>, <code>/redoc</code>, <code>/openapi.json</code>, <code>/documentation/*</code></td><td>none</td><td>path</td><td>schema, static files</td></tr>
+      <tr><td>Scheduler fire (<code>execute_schedule</code>)</td><td>internal</td><td>stored schedule</td><td>outbound webhook + notify, logs, run history</td></tr>
+    </table></div>
+    <p>Controls confirmed working: every schedule query scoped by <code>owner_id</code> with 404 on mismatch (<code>schedule_service.py:58-62</code>); request models reject unknown fields; <code>owner_id</code> not client-settable; header CRLF/null injection blocked (<code>db_schema.py:54-67</code>); outbound redirects not followed (httpx default); IPv4-mapped IPv6 private addresses blocked on Python 3.12.3; 500 handler returns a generic message; container runs as non-root.</p>
+  </section>
+
+  <section id="findings">
+    <h2>5. Findings</h2>
+    <div class="table-wrap"><table>
+      <tr><th>ID</th><th>Severity</th><th>Category</th><th>Location</th><th>Status</th></tr>
+      <tr><td>S-001</td><td class="sev high">High</td><td>Unverified tenant identity (BOLA when port reachable)</td><td><code>src/api/routes/v1/_common.py:13</code></td><td>open</td></tr>
+      <tr><td>S-002</td><td class="sev high">High</td><td>SSRF guard bypass with read-back</td><td><code>src/scheduling/actions.py:127</code></td><td>open</td></tr>
+      <tr><td>S-003</td><td class="sev med">Medium</td><td>No resource limits: outbound amplification</td><td><code>src/scheduling/triggers.py:111</code></td><td>open</td></tr>
+      <tr><td>S-004</td><td class="sev med">Medium</td><td>Webhook credentials returned in reads</td><td><code>src/api/models/schedule.py:124</code></td><td>open</td></tr>
+      <tr><td>S-005</td><td class="sev med">Medium</td><td>Sensitive data in logs and error records</td><td><code>src/scheduling/actions.py:56</code>, <code>:86</code></td><td>open</td></tr>
+      <tr><td>S-006</td><td class="sev med">Medium</td><td>No security event logging or request correlation</td><td><code>src/core/logging/logger.py:12</code></td><td>open</td></tr>
+      <tr><td>S-007</td><td class="sev low">Low</td><td>Raw exception text on unauthenticated <code>/health</code></td><td><code>src/api/routes/health.py:49</code></td><td>open</td></tr>
+      <tr><td>S-008</td><td class="sev low">Low</td><td>Debug tracebacks and API docs not gated for production</td><td><code>server.py:46-51</code></td><td>open</td></tr>
+      <tr><td>S-009</td><td class="sev low">Low</td><td>Dependencies with known advisories</td><td><code>uv.lock</code></td><td>open</td></tr>
+      <tr><td>S-010</td><td class="sev info">Info</td><td><code>X-Owner-Id</code> unbounded; legacy owner <code>"public"</code></td><td><code>src/api/routes/v1/_common.py:19</code></td><td>open</td></tr>
+      <tr><td>S-011</td><td class="sev info">Info</td><td>No security headers on served HTML (<code>/documentation</code>, <code>/docs</code>)</td><td><code>server.py:41</code></td><td>open</td></tr>
+    </table></div>
+
+    <div class="card finding high">
+      <h3>S-001 · <span class="sev high">High</span> · Unverified tenant identity — any caller can act as any tenant</h3>
+      <dl>
+        <dt>Standard</dt><dd>A01:2025 · A07:2025 · API1:2023 · API2:2023 · CWE-639 · CWE-290 · ASVS V8.2.2, V8.3.1</dd>
+        <dt>Location</dt><dd><code>src/api/routes/v1/_common.py:13-22</code>; exposure: <code>docker-compose.yml:10-11</code>, <code>server_run.py:19</code></dd>
+        <dt>Evidence</dt><dd><code>owner = (x_owner_id or "").strip()</code> — the header value is the identity. Nothing proves the request came through the gateway; compose publishes the port on all host interfaces.</dd>
+        <dt>Impact</dt><dd>Any client that reaches the port directly (same network, misrouted ingress, another internal service) sets <code>X-Owner-Id</code> to another tenant's id and can list, read (including webhook credentials, S-004), edit, trigger or delete that tenant's schedules. Tenant ids are often guessable. Rated High because the repo's deployment publishes the port; drops to Medium if the port is provably reachable only by the gateway.</dd>
+        <dt>Fix</dt><dd>Make the service verify the gateway, not trust the header. Smallest step: a shared gateway secret checked in constant time, fail closed when unset in production. Better: verify a gateway-signed JWT (pinned alg, <code>exp</code>/<code>aud</code>/<code>iss</code>) and take the owner from its claim. Also bind the published port to an internal interface or remove <code>ports:</code> and use a private network.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+      <div class="row"><span class="box">Client (any)</span> → <span class="box">X-Owner-Id header</span> <span class="fail">no proof of gateway</span> → <span class="box">current_owner()</span> → <span class="box bad">Other tenant's schedules</span></div>
+<pre>
+# src/core/config.py
++    # Shared secret the gateway sends in X-Gateway-Token. Required in production.
++    gateway_token: str | None = None
+
+# src/api/routes/v1/_common.py
++import hmac
++from src.core.config import get_settings
+ def current_owner(
+-    x_owner_id: str | None = Header(default=None)) -&gt; str:
++    x_owner_id: str | None = Header(default=None),
++    x_gateway_token: str | None = Header(default=None),
++) -&gt; str:
++    expected = get_settings().gateway_token
++    if expected is None and get_settings().is_production:
++        raise AuthError("Service misconfigured")          # fail closed
++    if expected is not None and not hmac.compare_digest(
++        (x_gateway_token or "").encode(), expected.encode()
++    ):
++        raise AuthError("Invalid gateway token")
+     owner = (x_owner_id or "").strip()
+
+# docker-compose.yml
+-      - "${PORT:-3011}:${PORT:-3011}"
++      - "127.0.0.1:${PORT:-3011}:${PORT:-3011}"   # or drop ports: and join the gateway network
+</pre>
+    </div>
+
+    <div class="card finding high">
+      <h3>S-002 · <span class="sev high">High</span> · SSRF guard bypass (check-then-connect, incomplete ranges) with response read-back</h3>
+      <dl>
+        <dt>Standard</dt><dd>A01:2025 (SSRF) · API7:2023 · CWE-918 · CWE-367 · ASVS V1.3.6</dd>
+        <dt>Location</dt><dd><code>src/scheduling/actions.py:127-141</code> (guard), <code>:71</code> and <code>:77</code> (check, then a second resolution inside httpx), <code>:106-108</code> (notify, same pattern)</dd>
+        <dt>Evidence</dt><dd>
+          (1) <code>_assert_safe_url</code> resolves the host with <code>getaddrinfo</code>, then <code>client.request(..., url)</code> resolves it again. A hostname whose DNS answer changes between the two lookups (short TTL) passes the check and connects to an internal address.<br>
+          (2) <code>if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved</code> lets through <code>100.64.0.0/10</code> (shared/CGNAT, used for internal endpoints by some clouds) and multicast — verified on Python 3.12.3.<br>
+          (3) The target's response body is stored (<code>jobs.py:43</code>) and returned by <code>GET /schedules/{id}/runs</code>, and the blocked-target error text names the resolved internal IP (<code>actions.py:141</code>), which is stored in <code>last_error</code>.</dd>
+        <dt>Impact</dt><dd>A tenant (or, with S-001, anyone) makes the service call internal HTTP services or cloud metadata endpoints and reads up to 2048 characters of each response back through the runs API. Retries and interval triggers repeat the request.</dd>
+        <dt>Fix</dt><dd>Resolve once and connect to the vetted IP: a custom httpx transport / <code>httpcore</code> network backend that checks every resolved address with <code>not ip.is_global</code> at connect time; or route all outbound calls through an egress proxy that enforces the deny list. Block on <code>not ip.is_global</code> (covers CGNAT, multicast, documentation, benchmarking ranges). Do not echo the resolved IP in the error.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+      <div class="row"><span class="box">ScheduleCreate.action.url</span> → <span class="box">_assert_safe_url (DNS lookup 1)</span> <span class="fail">no IP pinning</span> → <span class="box">httpx (DNS lookup 2)</span> → <span class="box bad">Internal service / metadata</span> → <span class="box bad">response_body via GET /runs</span></div>
+<pre>
+# src/scheduling/actions.py — minimum patch for (2) and (3)
+-        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
+-            raise WebhookError(f"Blocked webhook target {request.host} -&gt; {ip} (private host)")
++        if not ip.is_global:
++            raise WebhookError(f"Blocked webhook target {request.host} (non-public address)")
+
+# for (1): pin the connection to the checked address, e.g. an httpx transport whose
+# network backend runs the same `not ip.is_global` check on the socket's peer address
+# before sending; or set HTTPS_PROXY to an egress proxy with the deny list.
+# ponytail: IP pinning is the real fix; the range fix alone does not stop rebinding.
+</pre>
+    </div>
+
+    <div class="card finding med">
+      <h3>S-003 · <span class="sev med">Medium</span> · No resource limits — service usable as an outbound traffic relay</h3>
+      <dl>
+        <dt>Standard</dt><dd>API4:2023 · API6:2023 · CWE-770 · CWE-400 · ASVS V2.4.1</dd>
+        <dt>Location</dt><dd><code>src/scheduling/triggers.py:111</code> (interval args passed through), <code>src/core/db/db_schema.py:50-52</code> (timeout ≤ 300 s, retries ≤ 10), <code>src/core/db/db_schema.py:105</code> (unbounded <code>payload</code>), <code>src/scheduling/schedule_service.py:22</code> (no per-owner quota), <code>src/scheduling/schedule_service.py:32</code> (unbounded list)</dd>
+        <dt>Evidence</dt><dd><code>armable_trigger</code> accepted <code>{"seconds": 0.01}</code> (verified). No cap on schedules per owner, request body size, <code>payload</code> size, or list length; no rate limit on any route.</dd>
+        <dt>Impact</dt><dd>One caller creates many schedules firing every few milliseconds at a third-party URL, each with up to 11 attempts — the service (and its IP reputation) becomes a traffic source against that target, and scheduler/DB load starves other tenants. Large payloads bloat MongoDB and every list response.</dd>
+        <dt>Fix</dt><dd>Minimum interval (e.g. 60 s, configurable) for interval and cron; per-owner schedule cap; <code>payload</code> size cap; request body size cap; paginate <code>GET /schedules</code> like <code>/runs</code>; rate-limit create and run-now at the gateway.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+<pre>
+# src/scheduling/triggers.py — in armable_trigger, after has_future_fire
++    now = datetime.now(UTC)
++    first = trigger.get_next_fire_time(None, now)
++    second = trigger.get_next_fire_time(first, first)
++    if second is not None and (second - first).total_seconds() &lt; get_settings().min_fire_interval_s:
++        raise ValidationError(f"Trigger fires more often than every {get_settings().min_fire_interval_s}s")
+
+# src/api/models/schedule.py — ScheduleCreate / ScheduleUpdate
++    @field_validator("payload")
++    @classmethod
++    def _cap_payload(cls, v):
++        if v is not None and len(json.dumps(v)) &gt; 64_000:
++            raise ValueError("payload exceeds 64 KB")
++        return v
+
+# src/scheduling/schedule_service.py — create_schedule
++    if await Schedule.find(Schedule.owner_id == owner_id).count() &gt;= get_settings().max_schedules_per_owner:
++        raise ConflictError("Schedule limit reached")
+</pre>
+    </div>
+
+    <div class="card finding med">
+      <h3>S-004 · <span class="sev med">Medium</span> · Webhook credentials stored in clear and returned on every read</h3>
+      <dl>
+        <dt>Standard</dt><dd>API3:2023 · A04:2025 · CWE-200 · CWE-312 · ASVS V14.2.1</dd>
+        <dt>Location</dt><dd><code>src/api/models/schedule.py:124</code> (<code>action: WebhookAction | None</code> in <code>ScheduleRead</code>), <code>src/core/db/db_schema.py:49</code></dd>
+        <dt>Evidence</dt><dd><code>ScheduleRead</code> serialises the full <code>WebhookAction</code>, including <code>headers</code>, which is where callers put <code>Authorization</code> / API-key values for the target.</dd>
+        <dt>Impact</dt><dd>Every <code>GET</code>, list, create, update, pause, resume and run response echoes the target's credentials; they land in client logs, browser devtools, gateway logs, and (with S-001) any other tenant's hands. At rest they sit in clear in MongoDB and backups.</dd>
+        <dt>Fix</dt><dd>Return header names with masked values in reads (write-only secret). Optionally encrypt header values at rest.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+<pre>
+# src/api/models/schedule.py — ScheduleRead
++    @field_serializer("action")
++    def _mask_headers(self, action: WebhookAction | None):
++        if action is None:
++            return None
++        data = action.model_dump(mode="json")
++        data["headers"] = {k: "***" for k in action.headers}
++        return data
+</pre>
+    </div>
+
+    <div class="card finding med">
+      <h3>S-005 · <span class="sev med">Medium</span> · Sensitive data written to logs, run records and notify callbacks</h3>
+      <dl>
+        <dt>Standard</dt><dd>A09:2025 · CWE-532 · CWE-209 · ASVS V16.2.5</dd>
+        <dt>Location</dt><dd><code>src/scheduling/actions.py:56</code>, <code>:61</code>, <code>:64</code>, <code>:86</code>, <code>:112</code>; propagated via <code>src/scheduling/jobs.py:44</code> and <code>actions.py:101</code></dd>
+        <dt>Evidence</dt><dd>
+          <code>logger.info("... payload=%s", schedule.id, schedule.payload)</code> logs the full tenant payload at INFO.<br>
+          <code>f"{action.method} {url} failed: {exc}"</code> embeds the full URL (query-string tokens, userinfo) and httpx's message (which repeats the URL). That string goes to <code>logger.exception</code> (with traceback), <code>last_error</code>, <code>ScheduleRun.error</code>, and the notify body sent to a third party.</dd>
+        <dt>Impact</dt><dd>Tenant data and target credentials in the URL end up in the central log store (wider audience, longer retention than the DB) and are forwarded to the <code>notify_url</code> host.</dd>
+        <dt>Fix</dt><dd>Never log <code>payload</code>. Build error text from scheme + host + path only. Use <code>logger.warning(..., exc_info=False)</code> for expected delivery failures; keep <code>exception</code> for unexpected ones.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+<pre>
+# src/scheduling/actions.py
+-        logger.info("Schedule %s fired with no action; payload=%s", schedule.id, schedule.payload)
++        logger.info("Schedule %s fired with no action", schedule.id)
+ ...
+     except WebhookError as exc:
+-        logger.exception("Schedule %s failed", schedule.id)
++        logger.warning("Schedule %s failed: %s", schedule.id, exc)
+ ...
++def _safe_target(url: str) -&gt; str:
++    u = httpx.URL(url)
++    return f"{u.scheme}://{u.host}{u.path}"      # no query, no userinfo
+ ...
+-                        f"{action.method} {url} failed: {exc}", http_status, resp_body
++                        f"{action.method} {_safe_target(url)} failed: {type(exc).__name__}"
++                        + (f" (HTTP {http_status})" if http_status else ""),
++                        http_status, resp_body,
+</pre>
+    </div>
+
+    <div class="card finding med">
+      <h3>S-006 · <span class="sev med">Medium</span> · No security event logging, no request correlation</h3>
+      <dl>
+        <dt>Standard</dt><dd>A09:2025 · CWE-778 · CWE-117 · ASVS V16.3.1, V16.3.2, V16.2.1</dd>
+        <dt>Location</dt><dd><code>src/core/logging/logger.py:12-35</code>, <code>src/core/exceptions.py:68-70</code> (<code>AppError</code> handler logs nothing), <code>server.py:41-55</code> (no request middleware)</dd>
+        <dt>Evidence</dt><dd>401s, 404s on foreign ids, 409s and 422s return without a log line. No request id is generated or propagated, so a 500's <code>logger.exception("Unhandled error")</code> cannot be tied to a request, owner or route. Plain-text format: any future log line with user text can forge lines (CWE-117). Granian access log is off by default.</dd>
+        <dt>Impact</dt><dd>Tenant-id guessing (S-001), id enumeration and abuse (S-003) leave no trail; incident response cannot reconstruct who did what.</dd>
+        <dt>Fix</dt><dd>One middleware: accept or mint <code>X-Request-ID</code>, return it, log one line per request (method, route template, status, owner id, duration, request id). Log <code>AuthError</code> at WARNING. JSON formatter (or <code>%r</code> for user strings) to neutralise newlines.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+<pre>
+# server.py — in create_app
++    @app.middleware("http")
++    async def _access_log(request, call_next):
++        rid = request.headers.get("x-request-id") or uuid.uuid4().hex
++        started = time.perf_counter()
++        response = await call_next(request)
++        route = request.scope.get("route")
++        logger.info("request id=%s %s %s status=%d owner=%r ms=%.1f",
++                    rid, request.method, getattr(route, "path", "-"), response.status_code,
++                    request.headers.get("x-owner-id"), (time.perf_counter() - started) * 1000)
++        response.headers["X-Request-ID"] = rid
++        return response
+# ponytail: one log line per request; add contextvar-based request id in all logs when needed.
+</pre>
+    </div>
+
+    <div class="card finding low">
+      <h3>S-007 · <span class="sev low">Low</span> · Raw exception text on unauthenticated <code>/health</code></h3>
+      <dl>
+        <dt>Standard</dt><dd>A02:2025 · CWE-209 · ASVS V13.4.2</dd>
+        <dt>Location</dt><dd><code>src/api/routes/health.py:49</code></dd>
+        <dt>Evidence</dt><dd><code>error = f"{type(exc).__name__}: {exc}"</code>. The comment says "never a URI", but the message comes from the driver: a pymongo server-selection error includes the topology description with database host names and ports.</dd>
+        <dt>Impact</dt><dd>During a DB outage, anyone can learn internal hostnames and ports.</dd>
+        <dt>Fix</dt><dd>Return the exception type only; log the detail.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+<pre>
+-        error = f"{type(exc).__name__}: {exc}"
++        logger.warning("health probe failed: %s", exc)
++        error = type(exc).__name__
+</pre>
+    </div>
+
+    <div class="card finding low">
+      <h3>S-008 · <span class="sev low">Low</span> · Debug tracebacks and API docs not gated for production</h3>
+      <dl>
+        <dt>Standard</dt><dd>A02:2025 · API8:2023 · CWE-489 · CWE-215 · ASVS V13.4.2</dd>
+        <dt>Location</dt><dd><code>server.py:46-51</code></dd>
+        <dt>Evidence</dt><dd><code>debug=settings.debug</code>: with <code>DEBUG=true</code> Starlette's <code>ServerErrorMiddleware</code> returns the traceback page before the envelope 500 handler runs (verified in installed Starlette). <code>/docs</code>, <code>/redoc</code>, <code>/openapi.json</code> are always public.</dd>
+        <dt>Impact</dt><dd>One wrong env var in production exposes stack traces with code paths and local values; the public schema maps the whole API for an attacker.</dd>
+        <dt>Fix</dt><dd>Ignore <code>debug</code> in production; disable docs in production (or put them behind the gateway).</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+<pre>
+     app = FastAPI(
+         ...
+-        debug=settings.debug,
++        debug=settings.debug and not settings.is_production,
++        docs_url=None if settings.is_production else "/docs",
++        redoc_url=None if settings.is_production else "/redoc",
++        openapi_url=None if settings.is_production else "/openapi.json",
+</pre>
+    </div>
+
+    <div class="card finding low">
+      <h3>S-009 · <span class="sev low">Low</span> · Dependencies with known advisories</h3>
+      <dl>
+        <dt>Standard</dt><dd>A03:2025 · API9:2023 · CWE-1395 · ASVS V15.2.1</dd>
+        <dt>Location</dt><dd><code>uv.lock</code></dd>
+        <dt>Evidence</dt><dd>starlette 1.2.1 (PYSEC-2026-248 request.url authority confusion, fixed 1.3.0; PYSEC-2026-249 urlencoded form limits, fixed 1.3.1); anyio 4.13.0 (CVE-2026-63374 IDNA TLS, CVE-2026-64847 process-pool stderr, fixed 4.14.2); pydantic-settings 2.14.1 (CVE-2026-58203 secrets_dir symlink, fixed 2.14.2).</dd>
+        <dt>Impact</dt><dd>Low reachability: no form parsing, no <code>secrets_dir</code>, no anyio process pool; <code>request.url</code> is only rebuilt by StaticFiles' directory redirect under <code>/documentation</code>; the anyio TLS issue needs traffic hijack. Rated Low on reachability, not CVSS.</dd>
+        <dt>Fix</dt><dd><code>uv lock --upgrade-package starlette --upgrade-package anyio --upgrade-package pydantic-settings</code> (starlette range is set by fastapi 0.136.3; upgrade fastapi if the lock refuses), then run the test suite.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+    </div>
+
+    <div class="card finding">
+      <h3>S-010 · <span class="sev info">Info</span> · <code>X-Owner-Id</code> unbounded; legacy default owner <code>"public"</code></h3>
+      <dl>
+        <dt>Standard</dt><dd>API4:2023 · CWE-20 · ASVS V2.2.1</dd>
+        <dt>Location</dt><dd><code>src/api/routes/v1/_common.py:19</code>, <code>src/core/db/db_schema.py:89</code></dd>
+        <dt>Evidence</dt><dd>Any non-blank string (up to the server's header limit, any characters) becomes <code>owner_id</code> and is stored and indexed. Legacy documents default to <code>"public"</code>, so any caller sending <code>X-Owner-Id: public</code> owns them.</dd>
+        <dt>Fix</dt><dd>Validate the header (e.g. <code>^[A-Za-z0-9_.:-]{1,128}$</code>); migrate legacy <code>"public"</code> documents to a real owner or reject that value.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+    </div>
+
+    <div class="card finding">
+      <h3>S-011 · <span class="sev info">Info</span> · No security headers on served HTML</h3>
+      <dl>
+        <dt>Standard</dt><dd>A02:2025 · CWE-693 · ASVS V3.4.1</dd>
+        <dt>Location</dt><dd><code>server.py:41-55</code></dd>
+        <dt>Evidence</dt><dd>JSON API needs little, but <code>/documentation</code> and <code>/docs</code> serve HTML with no <code>X-Content-Type-Options</code>, <code>X-Frame-Options</code>/<code>frame-ancestors</code>, or CSP. No CORS middleware (correct for a server-to-server API; keep it that way).</dd>
+        <dt>Fix</dt><dd>Add <code>X-Content-Type-Options: nosniff</code> and <code>X-Frame-Options: DENY</code> in the S-006 middleware, or at the gateway.</dd>
+        <dt>Status</dt><dd>open</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section id="verification">
+    <h2>6. Verification</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Check</th><th>Result</th></tr>
+      <tr><td>Every finding re-opened at cited <code>file:line</code></td><td class="pass">done</td></tr>
+      <tr><td>Runtime checks (ipaddress ranges, httpx redirects, Starlette debug path, 10 ms interval)</td><td class="pass">executed against installed libraries</td></tr>
+      <tr><td>Source unchanged (<code>git status</code>: only <code>agent-tracking/</code> added)</td><td class="pass">yes</td></tr>
+      <tr><td>Report has no external script, font or CDN</td><td class="pass">yes</td></tr>
+      <tr><td>Secrets scan with gitleaks (history)</td><td class="fail">not run — tool not installed</td></tr>
+    </table></div>
+    <p>Coverage: all in-scope files listed in research were read in full. Not reviewed: tests, docs/site content, deploy scripts, MongoDB server/network configuration, APScheduler jobstore internals, git history for secrets.</p>
+  </section>
+
+  <section id="next">
+    <h2>7. Out-of-scope observations and next tasks</h2>
+    <ul>
+      <li><code>deploy.sh</code> runs <code>docker system prune -a -f</code> on every deploy (host-wide image removal).</li>
+      <li>MongoDB connection default has no credentials or TLS; compose has no MongoDB service.</li>
+      <li>Run gitleaks over git history: <code>gitleaks git . --redact</code>.</li>
+      <li>Remediation task (<code>feature</code>/<code>security</code> type) built from S-001…S-006, each patch with a regression test.</li>
+    </ul>
+  </section>
+
+  <section id="appendix">
+    <h2>8. Appendix — scanner false positives</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Rule</th><th>Location</th><th>Reason</th></tr>
+      <tr><td>ruff S104</td><td><code>server_run.py:19</code>, <code>src/core/config.py:29</code></td><td>container bind address; exposure covered by S-001</td></tr>
+      <tr><td>ruff S606</td><td><code>server_run.py:28</code></td><td>argv list, no shell; env set by operator</td></tr>
+      <tr><td>ruff BLE001</td><td><code>src/api/routes/health.py:47</code></td><td>deliberate: probe must never 500</td></tr>
+      <tr><td>semgrep dangerous-os-exec-tainted-env-args</td><td><code>server_run.py:28</code></td><td>same as S606</td></tr>
+    </table></div>
+  </section>
+
+  <section id="trace">
+    <h2>9. Trace</h2>
+    <p><a href="../plans/2026-09-25-security-api-logging/scope.md">scope.md</a> · <a href="../research/2026-09-25-security-api-logging.md">research</a> · <a href="../plans/2026-09-25-security-api-logging/plan.md">plan.md</a> · <a href="../plans/2026-09-25-security-api-logging/progress.md">progress.md</a></p>
+  </section>
+</main>
+</body>
+</html>

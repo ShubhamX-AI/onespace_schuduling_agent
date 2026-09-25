@@ -22,6 +22,11 @@ rules below hold for both.
 | Python — pytest, httpx `MockTransport`, `uv run pytest` | `references/python-pytest.md` |
 | Node / TypeScript — vitest, undici `MockAgent` / MSW, supertest / `app.inject` | `references/node-vitest.md` |
 
+**Gate — when this is the task itself** (not a step inside another task):
+load `onespace-be-workflow` and run its phases 1–3 before anything else. Invoking this
+skill directly (a slash command, a one-line request) is not an exemption,
+and harness plan mode does not replace `plan.md`.
+
 ---
 
 ## Non-negotiables (both stacks)
@@ -38,7 +43,8 @@ rules below hold for both.
 5. **Tests mirror the source tree** (following the repo's recorded structure —
    see `onespace-be-structure-service`), one behaviour per test, names that state the
    invariant (`returns 404 for another owner's order`).
-6. **Licence header on every new test file** (`onespace-be-busl-licence-compliance`).
+6. **Licence header on every new test file**: load `onespace-be-busl-licence-compliance` and run its
+   header script.
 
 ## What to assert — the service contract
 
@@ -98,6 +104,10 @@ plausible bug that would make it fail.
 5. Headers on new files; docs updated if behaviour or config changed.
 
 ## Report
+
+Write the report to `agent-tracking/reports/<slug>.html` (or `.md`). Never the
+repo root, the temp directory, or a hosted page (claude.ai Artifact, gist, docs
+connector).
 
 When tests are the task (not a step inside another task), use the `onespace-be-workflow`
 report template and `onespace-be-workflow/references/VISUAL-REPORT.md`: a metrics table for
