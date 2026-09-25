@@ -53,16 +53,20 @@ async def run_action(schedule: Schedule) -> ActionResult:
     """
     action = schedule.action
     if action is None:
-        logger.info("Schedule %s fired with no action; payload=%s", schedule.id, schedule.payload)
+        # Never log the payload: it is tenant data.
+        logger.info("Schedule %s fired with no action", schedule.id)
         return ActionResult()
     try:
         return await _call_webhook(action, schedule.payload)
     except WebhookError as exc:
-        logger.exception("Schedule %s failed", schedule.id)
+        # An expected delivery failure: the message is already secret-free.
+        logger.warning("Schedule %s failed: %s", schedule.id, exc)
         return ActionResult(exc.http_status, exc.body, str(exc))
     except Exception as exc:  # never crash the scheduler
         logger.exception("Schedule %s failed", schedule.id)
-        return ActionResult(error=str(exc))
+        # The recorded error reaches run history and the notify callback, so it
+        # carries only the type: an arbitrary message may hold secrets.
+        return ActionResult(error=f"Unexpected error: {type(exc).__name__}")
 
 
 async def _call_webhook(action: WebhookAction, body: dict[str, Any]) -> ActionResult:
@@ -83,7 +87,9 @@ async def _call_webhook(action: WebhookAction, body: dict[str, Any]) -> ActionRe
                 if attempt + 1 == attempts:
                     http_status, resp_body = _response_of(exc)
                     raise WebhookError(
-                        f"{action.method} {url} failed: {exc}", http_status, resp_body
+                        _failure_message(action.method, url, exc, http_status),
+                        http_status,
+                        resp_body,
                     ) from exc
                 await asyncio.sleep(2**attempt)  # 1s, 2s, 4s, ...
 
@@ -108,9 +114,24 @@ async def notify(schedule: Schedule, run: ScheduleRun) -> bool:
             response = await client.post(url, json=result)
             response.raise_for_status()
         return True
-    except Exception:  # a broken callback must never fail the run
-        logger.exception("Notify failed for schedule %s", schedule.id)
+    except Exception as exc:  # a broken callback must never fail the run
+        # Type only: the exception text and traceback repeat the notify URL.
+        logger.warning("Notify failed for schedule %s: %s", schedule.id, type(exc).__name__)
         return False
+
+
+def _failure_message(method: str, url: str, exc: Exception, http_status: int | None) -> str:
+    """Describe a failed call without secrets.
+
+    Built from scheme, host and path only: the query string and userinfo can
+    hold tokens, and httpx's own message repeats the full URL. The text is
+    stored in ``last_error`` and run history and sent to the notify callback.
+    """
+    target = httpx.URL(url).copy_with(query=None, fragment=None, username=None, password=None)
+    message = f"{method} {target} failed: {type(exc).__name__}"
+    if http_status is not None:
+        message += f" (HTTP {http_status})"
+    return message
 
 
 def _truncate(text: str) -> str:

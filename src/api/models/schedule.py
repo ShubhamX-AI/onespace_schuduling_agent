@@ -8,9 +8,10 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_serializer, field_validator
 
 from src.core.db.db_schema import (
+    MASKED_VALUE,
     RunStatus,
     Schedule,
     ScheduleRun,
@@ -136,6 +137,13 @@ class ScheduleRead(BaseModel):
 
     # Document ids are ObjectIds; the API exposes them as strings.
     _id_to_str = field_validator("id", mode="before")(_to_str)
+
+    @field_serializer("action")
+    def _mask_header_values(self, action: WebhookAction | None) -> WebhookAction | None:
+        """Keep header names, hide values: they usually hold the target's credentials."""
+        if action is None:
+            return None
+        return action.model_copy(update={"headers": dict.fromkeys(action.headers, MASKED_VALUE)})
 
     @classmethod
     def from_document(cls, doc: Schedule, next_run_at: datetime | None = None) -> "ScheduleRead":

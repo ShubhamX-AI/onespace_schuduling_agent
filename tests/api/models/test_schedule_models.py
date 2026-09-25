@@ -9,8 +9,8 @@ import pytest
 from pydantic import ValidationError
 
 from src.api.models.schedule import ScheduleCreate, ScheduleRead, ScheduleRunRead, ScheduleUpdate
-from src.core.db.db_schema import WebhookAction
-from tests.factories import build_schedule, build_schedule_run
+from src.core.db.db_schema import MASKED_VALUE, WebhookAction
+from tests.factories import build_schedule, build_schedule_run, build_webhook_action
 
 _ACTION = {"type": "webhook", "url": "https://example.com/hook"}
 
@@ -102,6 +102,22 @@ def test_schedule_read_from_document() -> None:
     assert read.name == "test-schedule"
     assert read.next_run_at is None
     assert read.action is not None
+
+
+def test_schedule_read_masks_header_values_but_keeps_names() -> None:
+    action = build_webhook_action(headers={"Authorization": "Bearer secret", "X-Trace": "1"})
+    schedule = build_schedule(action=action)
+
+    dumped = ScheduleRead.from_document(schedule).model_dump(mode="json")
+
+    assert dumped["action"]["headers"] == {"Authorization": MASKED_VALUE, "X-Trace": MASKED_VALUE}
+    assert dumped["action"]["url"] == "https://example.com/hook"
+    assert schedule.action.headers["Authorization"] == "Bearer secret"  # document untouched
+
+
+def test_schedule_read_without_action_serialises_null() -> None:
+    dumped = ScheduleRead.from_document(build_schedule(action=None)).model_dump(mode="json")
+    assert dumped["action"] is None
 
 
 def test_schedule_run_read_from_document() -> None:

@@ -191,7 +191,7 @@ sent as the JSON request body, so any service in any language can be driven by i
 | `type`            | no       | `webhook` | Action kind (only `webhook` for now).          |
 | `method`          | no       | `POST`  | HTTP method (`GET`/`POST`/`PUT`/`PATCH`/`DELETE`). |
 | `url`             | **yes**  | —       | Target URL (`http`/`https`).                     |
-| `headers`         | no       | `{}`    | Headers sent with the call (auth tokens, etc.).  |
+| `headers`         | no       | `{}`    | Headers sent with the call (auth tokens, etc.). Write-only: reads show values as `***`. |
 | `timeout_seconds` | no       | `30`    | Per-attempt timeout (`0 < t ≤ 300`).             |
 | `max_retries`     | no       | `3`     | Extra attempts after the first on failure (`0–10`). |
 

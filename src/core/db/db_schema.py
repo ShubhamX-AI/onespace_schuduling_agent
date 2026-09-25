@@ -30,6 +30,9 @@ _MAX_HEADERS = 50
 _MAX_HEADER_LEN = 1024
 # Control characters that enable HTTP header injection if smuggled into a value.
 _HEADER_FORBIDDEN_CHARS = ("\r", "\n", "\x00")
+# Header values are write-only: API reads show this in place of every value, and
+# a write that sends it back for a stored header keeps the stored value.
+MASKED_VALUE = "***"
 
 
 class WebhookAction(BaseModel):

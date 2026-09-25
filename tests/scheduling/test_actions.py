@@ -160,6 +160,19 @@ async def test_notify_failure_does_not_raise(monkeypatch: pytest.MonkeyPatch) ->
     assert await notify(_schedule("http://127.0.0.1/cb"), _run()) is False  # swallowed
 
 
+async def test_notify_failure_log_has_no_url_or_traceback(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _allow_private(monkeypatch, True)
+    _mock_client(monkeypatch, lambda req: httpx.Response(500))
+    await notify(_schedule("http://127.0.0.1/cb?token=secret"), _run())
+    [record] = [r for r in caplog.records if r.name == actions.logger.name]
+    assert record.levelname == "WARNING"
+    assert record.exc_info is None
+    assert "secret" not in record.getMessage()
+    assert "127.0.0.1" not in record.getMessage()
+
+
 # --- run_action (the seam jobs.py calls) ------------------------------------
 
 
@@ -206,9 +219,60 @@ async def test_run_action_unexpected_error_is_a_result(monkeypatch: pytest.Monke
 
     monkeypatch.setattr(actions, "_call_webhook", _boom)
     result = await run_action(build_schedule())
-    assert result.error == "kaboom"
+    assert result.error == "Unexpected error: ValueError"  # message may hold secrets
 
 
 def test_response_of_transport_error_has_no_response() -> None:
     exc = httpx.ConnectError("boom", request=httpx.Request("POST", "https://example.com"))
     assert actions._response_of(exc) == (None, None)
+
+
+# --- secret-free errors and logs (S-005) ------------------------------------
+
+
+async def test_run_action_without_action_does_not_log_payload(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("INFO", logger=actions.logger.name)
+    await run_action(build_schedule(action=None, payload={"card": "4111-secret"}))
+    assert "4111-secret" not in caplog.text
+
+
+async def test_failure_message_strips_query_and_userinfo(monkeypatch: pytest.MonkeyPatch) -> None:
+    _allow_private(monkeypatch, True)
+    _mock_client(monkeypatch, lambda req: httpx.Response(500, text="boom"))
+    action = WebhookAction(url="http://user:pw@127.0.0.1:8080/hook?token=secret", max_retries=0)
+    with pytest.raises(WebhookError) as exc_info:
+        await _call_webhook(action, {})
+    assert (
+        str(exc_info.value) == "POST http://127.0.0.1:8080/hook failed: HTTPStatusError (HTTP 500)"
+    )
+
+
+async def test_failure_message_without_response_has_no_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _allow_private(monkeypatch, True)
+
+    def _refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused http://127.0.0.1/hook?token=secret", request=request)
+
+    _mock_client(monkeypatch, _refuse)
+    action = WebhookAction(url="http://127.0.0.1/hook?token=secret", max_retries=0)
+    with pytest.raises(WebhookError) as exc_info:
+        await _call_webhook(action, {})
+    assert str(exc_info.value) == "POST http://127.0.0.1/hook failed: ConnectError"
+
+
+async def test_delivery_failure_logs_warning_without_secrets(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _allow_private(monkeypatch, True)
+    _mock_client(monkeypatch, lambda req: httpx.Response(502))
+    action = build_webhook_action(url="http://127.0.0.1/hook?token=secret", max_retries=0)
+    result = await run_action(build_schedule(action=action))
+    [record] = [r for r in caplog.records if r.name == actions.logger.name]
+    assert record.levelname == "WARNING"
+    assert record.exc_info is None
+    assert "secret" not in record.getMessage()
+    assert "secret" not in result.error

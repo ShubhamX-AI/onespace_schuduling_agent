@@ -14,7 +14,7 @@ from typing import Any
 from beanie import PydanticObjectId
 from bson.errors import InvalidId
 
-from src.core.db.db_schema import Schedule, ScheduleRun, ScheduleStatus
+from src.core.db.db_schema import MASKED_VALUE, Schedule, ScheduleRun, ScheduleStatus, WebhookAction
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.scheduling import lifecycle
 
@@ -23,6 +23,7 @@ async def create_schedule(fields: dict[str, Any], owner_id: str) -> Schedule:
     if await _find_by_name(owner_id, fields["name"]) is not None:
         raise ConflictError(f"Schedule '{fields['name']}' already exists")
 
+    fields = {**fields, "action": _unmask_headers(fields["action"], stored=None)}
     schedule = Schedule(**fields, owner_id=owner_id)
     await lifecycle.create(schedule)
     return schedule
@@ -74,8 +75,36 @@ async def update_schedule(schedule_id: str, changes: dict[str, Any], owner_id: s
     if renaming and await _find_by_name(owner_id, new_name) is not None:
         raise ConflictError(f"Schedule '{new_name}' already exists")
 
+    if "action" in changes:
+        changes = {**changes, "action": _unmask_headers(changes["action"], schedule.action)}
     await lifecycle.apply(schedule, changes)
     return schedule
+
+
+def _unmask_headers(action: dict[str, Any], stored: WebhookAction | None) -> dict[str, Any]:
+    """Swap masked header values back to the stored ones before a write.
+
+    Reads return every header value as ``MASKED_VALUE``, so a client that edits
+    a read and sends it back must not overwrite the real secret with the mask.
+    Names match case-insensitively, as HTTP header names do.
+
+    Raises:
+        ValidationError: a header is masked but has no stored value to keep.
+    """
+    stored_values = {
+        name.lower(): value for name, value in (stored.headers if stored else {}).items()
+    }
+    headers = {}
+    for name, value in action["headers"].items():
+        if value == MASKED_VALUE:
+            if name.lower() not in stored_values:
+                raise ValidationError(
+                    f"Header '{name}' is masked ({MASKED_VALUE}) but has no stored value; "
+                    "send the real value"
+                )
+            value = stored_values[name.lower()]
+        headers[name] = value
+    return {**action, "headers": headers}
 
 
 async def delete_schedule(schedule_id: str, owner_id: str) -> None:

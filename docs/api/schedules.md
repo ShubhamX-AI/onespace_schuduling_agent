@@ -46,7 +46,7 @@ The object you get back in `data` from every schedule endpoint:
     "type": "webhook",
     "method": "POST",
     "url": "https://reporting-service/run",
-    "headers": { "Authorization": "Bearer abc123" },
+    "headers": { "Authorization": "***" },
     "timeout_seconds": 30,
     "max_retries": 3
   },
@@ -64,6 +64,11 @@ The object you get back in `data` from every schedule endpoint:
 ```
 
 Field meanings: see [Schedules](../concepts/schedules.md).
+
+!!! note "Header values are write-only"
+    Every response shows `action.headers` names with each value replaced by
+    `***`, so credentials never come back to the caller. See
+    [Update a schedule](#update-a-schedule) for sending an edited action back.
 
 ---
 
@@ -186,7 +191,7 @@ Recent run outcomes, newest first. Query param `limit` (default 20, max 100).
   "status": "error",
   "http_status": 500,
   "response_body": "{\"detail\":\"boom\"}",
-  "error": "POST https://… failed: Server error '500 …'",
+  "error": "POST https://reporting-service/run failed: HTTPStatusError (HTTP 500)",
   "started_at": "2026-06-12T13:00:00+00:00",
   "finished_at": "2026-06-12T13:00:04+00:00",
   "notified": true
@@ -219,6 +224,12 @@ re-armed only when a trigger field (`trigger_type`, `trigger_args`, `timezone`,
 `start_date`, `end_date`) or `status` changes, so editing e.g. `description` or
 `payload` keeps `next_run_at` where it was. A bad trigger, or one that would never
 fire again, leaves the stored schedule unchanged (`422`).
+
+`action` is replaced as a whole. A header value of exactly `***` (as returned by
+reads) keeps the stored value for that header name (matched case-insensitively),
+so a read → edit → PATCH round-trip does not overwrite secrets. `***` for a
+header with no stored value returns `422` — send the real value. The same `422`
+applies to `***` in a create.
 
 !!! note
     Editing `payload` or `action` takes effect on the **next** fire — the

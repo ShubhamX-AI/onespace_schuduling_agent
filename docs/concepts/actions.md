@@ -23,7 +23,7 @@ language can be driven by it.
 | `type` | no | `webhook` | Action kind (only `webhook` for now). |
 | `method` | no | `POST` | `GET` \| `POST` \| `PUT` \| `PATCH` \| `DELETE`. |
 | `url` | **yes** | — | Target URL. Must be `http` or `https`. |
-| `headers` | no | `{}` | Sent with the request (auth tokens, content negotiation, …). Names/values may not contain control characters (`\r`, `\n`, null); max 50 headers, ≤ 1024 chars each. |
+| `headers` | no | `{}` | Sent with the request (auth tokens, content negotiation, …). Names/values may not contain control characters (`\r`, `\n`, null); max 50 headers, ≤ 1024 chars each. Write-only: reads return every value as `***`, and `***` sent back keeps the stored value. |
 | `timeout_seconds` | no | `30` | Per-attempt timeout. Range `0 < t ≤ 300`. |
 | `max_retries` | no | `3` | Extra attempts after the first on failure. Range `0–10`. |
 
@@ -50,8 +50,16 @@ attempt 1 ─fail─▶ wait 1s ─▶ attempt 2 ─fail─▶ wait 2s ─▶ at
 If every attempt fails, the run is recorded as:
 
 ```json
-{ "last_status": "error", "last_error": "POST https://… failed: …" }
+{ "last_status": "error", "last_error": "POST https://api.example.com/hook failed: HTTPStatusError (HTTP 500)" }
 ```
+
+The error text holds the method, the target's scheme, host and path, the error
+type and the HTTP status when a response arrived. The query string, any
+`user:password@` part and the HTTP client's message are left out, because they
+can carry credentials and this text is also stored in run history and sent to
+`notify_url`. An unexpected internal error is recorded as
+`Unexpected error: <ExceptionType>`; the full traceback goes only to the
+service log. The schedule's `payload` is never logged.
 
 A `2xx` on any attempt marks the run `success`. Either way `last_run_at` is set.
 

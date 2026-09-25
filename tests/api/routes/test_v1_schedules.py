@@ -8,8 +8,8 @@
 import pytest
 from httpx import AsyncClient
 
-from src.core.db.db_schema import Schedule
-from tests.factories import build_schedule
+from src.core.db.db_schema import MASKED_VALUE, Schedule
+from tests.factories import build_schedule, build_webhook_action
 
 
 @pytest.mark.parametrize(
@@ -102,3 +102,40 @@ async def test_run_now_returns_202_without_waiting_for_the_run(
     assert response.status_code == 202
     assert response.json()["message"] == "Schedule run queued"
     assert live_scheduler.get_job(f"run-now:{schedule.id}") is not None
+
+
+def _stub_get(monkeypatch: pytest.MonkeyPatch, schedule: Schedule) -> None:
+    async def _get(_id):
+        return schedule
+
+    monkeypatch.setattr(Schedule, "get", _get)
+
+
+async def test_get_schedule_masks_webhook_header_values(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    action = build_webhook_action(headers={"Authorization": "Bearer secret"})
+    schedule = build_schedule(action=action)
+    _stub_get(monkeypatch, schedule)
+
+    response = await client.get(f"/api/v1/schedules/{schedule.id}")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["action"]["headers"] == {"Authorization": MASKED_VALUE}
+    assert "Bearer secret" not in response.text
+
+
+async def test_patch_masked_header_without_stored_value_returns_422(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    schedule = build_schedule()  # stored action has no headers
+    _stub_get(monkeypatch, schedule)
+
+    response = await client.patch(
+        f"/api/v1/schedules/{schedule.id}",
+        json={"action": {"url": "https://example.com/hook", "headers": {"X-Key": MASKED_VALUE}}},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["success"] is False
+    assert "X-Key" in response.json()["message"]
